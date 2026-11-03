@@ -27,8 +27,8 @@ const SAMPLES = 400; // dates averaged per day, to smooth per-date theme noise
 // smoothly with the day (merges + relic buys funded by rising idle scrap),
 // front-loaded onto the units that actually matter in combat.
 const ORDER = [
-  'dire-rat', 'warren-warden', 'corpse-glutton', 'gnawer',
-  'bone-priest', 'plague-bearer', 'blight-witch', 'dire-rat',
+  'dire-rat', 'md-rattyfock', 'corpse-glutton', 'gnawer',
+  'bone-priest', 'plague-bearer', 'draughtsman-moe', 'dire-rat',
 ];
 // fat-tick (+1/+2, heals every tick) has a live-battle effect on any slot,
 // unlike glass-shard (one-time) or weeping-boil (only procs on faint) —
@@ -116,7 +116,7 @@ function rosterForCleave(day: number, frontRelic: 'none' | 'rusted-nail' | 'gore
   // Heavy hitters up front so overkill is common (big attack vs. HP-scaled
   // but still finite enemy health) — this is the roster shape Gore-Cleaver
   // is meant to reward.
-  const order = ['dire-rat', 'gnawer', 'corpse-glutton', 'warren-warden', 'bone-priest', 'plague-bearer', 'blight-witch', 'dire-rat'];
+  const order = ['dire-rat', 'gnawer', 'corpse-glutton', 'md-rattyfock', 'bone-priest', 'plague-bearer', 'draughtsman-moe', 'dire-rat'];
   const units: Lineup['units'] = order.map((defId, i) => {
     const relicIds: string[] = [];
     if (i === 0 && frontRelic !== 'none') relicIds.push(frontRelic);
@@ -181,7 +181,7 @@ console.log(
 function rosterForExecute(day: number, frontRelic: 'none' | 'gore-cleaver' | 'marrow-snap'): Lineup {
   const cap = boardCapForDay(day);
   const tier = day <= 3 ? 1 : day <= 5 ? 2 : 3;
-  const order = ['dire-rat', 'gnawer', 'corpse-glutton', 'warren-warden', 'bone-priest', 'plague-bearer', 'blight-witch', 'dire-rat'];
+  const order = ['dire-rat', 'gnawer', 'corpse-glutton', 'md-rattyfock', 'bone-priest', 'plague-bearer', 'draughtsman-moe', 'dire-rat'];
   const units: Lineup['units'] = order.map((defId, i) => {
     const relicIds: string[] = [];
     if (i === 0 && frontRelic !== 'none') relicIds.push(frontRelic);
@@ -268,7 +268,7 @@ console.log(
 function rosterPoison(day: number): Lineup {
   const cap = boardCapForDay(day);
   const tier = day <= 3 ? 1 : day <= 5 ? 2 : 3;
-  const order = ['plague-bearer', 'blight-witch', 'plague-bearer', 'blight-witch', 'warren-warden', 'bone-priest', 'corpse-glutton', 'dire-rat'];
+  const order = ['plague-bearer', 'draughtsman-moe', 'plague-bearer', 'draughtsman-moe', 'md-rattyfock', 'bone-priest', 'corpse-glutton', 'dire-rat'];
   const units: Lineup['units'] = order.map((defId, i) => ({
     defId,
     tier,
@@ -280,7 +280,7 @@ function rosterPoison(day: number): Lineup {
 function rosterAttack(day: number): Lineup {
   const cap = boardCapForDay(day);
   const tier = day <= 3 ? 1 : day <= 5 ? 2 : 3;
-  const order = ['dire-rat', 'gnawer', 'corpse-glutton', 'warren-warden', 'bone-priest', 'dire-rat', 'gnawer', 'dire-rat'];
+  const order = ['dire-rat', 'gnawer', 'corpse-glutton', 'md-rattyfock', 'bone-priest', 'dire-rat', 'gnawer', 'dire-rat'];
   const units: Lineup['units'] = order.map((defId, i) => {
     const relicIds: string[] = [];
     if (i === 0) relicIds.push('gore-cleaver');
@@ -333,7 +333,7 @@ function rosterWithRunt(day: number, runtId: 'dawn-runt' | 'dusk-runt' | null): 
   const cap = boardCapForDay(day);
   const tier = day <= 3 ? 1 : day <= 5 ? 2 : 3;
   const relicSlots = Math.min(cap, 1 + day);
-  const baseOrder = ['dire-rat', 'warren-warden', 'corpse-glutton', 'gnawer', 'bone-priest', 'plague-bearer', 'blight-witch'];
+  const baseOrder = ['dire-rat', 'md-rattyfock', 'corpse-glutton', 'gnawer', 'bone-priest', 'plague-bearer', 'draughtsman-moe'];
   // Fill up to cap-1 with the strong roster, then guarantee the marginal
   // slot (Runt vs. Gutter-Runt filler) lands ON the board at every day —
   // a plain `[...baseOrder, filler].slice(0, cap)` silently drops the

@@ -30,8 +30,8 @@ const SAMPLES = 400;
 // fill all 8 possible slots (BOARD_CAP) so a purchased slot always has a
 // plausible unit to seat.
 const ORDER = [
-  'dire-rat', 'warren-warden', 'corpse-glutton', 'gnawer',
-  'bone-priest', 'plague-bearer', 'blight-witch', 'gutter-runt',
+  'dire-rat', 'md-rattyfock', 'corpse-glutton', 'gnawer',
+  'bone-priest', 'plague-bearer', 'draughtsman-moe', 'gutter-runt',
 ];
 const FILLER_RELIC = 'fat-tick';
 

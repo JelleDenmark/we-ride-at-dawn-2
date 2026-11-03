@@ -21,7 +21,7 @@ import { xorshift128, type Rng } from '../src/prng';
 
 const TIER = Number(process.env.TIER ?? 2);
 const SIZE = 7;
-// Experiment knobs (env): EXCLUDE=blight-witch,... drops units from the pool;
+// Experiment knobs (env): EXCLUDE=draughtsman-moe,... drops units from the pool;
 // CAP=n sets Corpse-Glutton's growth cap for this run.
 const EXCLUDE = (process.env.EXCLUDE ?? '').split(',').filter(Boolean);
 const IDS = Object.values(UNIT_DEFS).filter((u) => u.cost > 0 && !EXCLUDE.includes(u.id)).map((u) => u.id).sort();
@@ -102,7 +102,7 @@ function evolve(): string[][] {
 
 const STRATEGIES: Record<string, string[]> = {
   swarm: ['gutter-runt', 'rat-piper', 'rat-piper', 'brood-mother', 'md-rattyfock', 'press-kin', 'gutter-runt'],
-  plague: ['plague-bearer', 'plague-bearer', 'blight-witch', 'ward-weaver', 'plague-bearer', 'dire-rat', 'press-kin'],
+  plague: ['plague-bearer', 'plague-bearer', 'draughtsman-moe', 'ward-weaver', 'plague-bearer', 'dire-rat', 'press-kin'],
   sacrifice: ['gnawer', 'gnawer', 'corpse-glutton', 'brood-mother', 'bone-priest', 'corpse-glutton', 'gnawer'],
   bruiser: ['dire-rat', 'dire-rat', 'ward-weaver', 'md-rattyfock', 'press-kin', 'dawn-runt', 'dusk-runt'],
 };

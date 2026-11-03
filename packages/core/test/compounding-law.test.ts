@@ -55,10 +55,8 @@ describe('compounding-law: startOfBattle buff effects fire once, never scale wit
   it.each(startOfBattleBuffUnits.map((u) => [u.id, u] as const))(
     '%s: buff-event count does not grow with wave count',
     (_id, def) => {
-      const timeOfDay = def.ability.condition?.timeOfDay;
       const lineup = (waves: number): Lineup => ({
         units: [{ defId: def.id, tier: 1 }, { defId: 'gutter-runt', tier: 1 }],
-        timeOfDay,
       });
 
       const short = simulate(lineup(2), grinder(2));

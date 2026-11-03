@@ -7,16 +7,12 @@ describe('MD Rattyfock (issue #23)', () => {
     expect(UNIT_DEFS['md-rattyfock']).toBeDefined();
   });
 
-  it('has the exact same stats as Warren-Warden (attack, health, cost)', () => {
-    const warren = UNIT_DEFS['warren-warden'];
+  it('has 2/6 stats and costs 6', () => {
     const md = UNIT_DEFS['md-rattyfock'];
-    expect(md.attack).toBe(warren.attack);
-    expect(md.health).toBe(warren.health);
-    expect(md.cost).toBe(warren.cost);
+    expect([md.attack, md.health, md.cost]).toEqual([2, 6, 6]);
   });
 
-  it('has the same ability as Warren-Warden (startOfBattle, +1/+1 to all behind)', () => {
-    const warren = UNIT_DEFS['warren-warden'];
+  it('has the ability (startOfBattle, +1/+1 to all behind)', () => {
     const md = UNIT_DEFS['md-rattyfock'];
     expect(md.ability).toBeDefined();
     expect(md.ability?.trigger).toBe('startOfBattle');

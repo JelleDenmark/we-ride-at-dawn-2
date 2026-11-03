@@ -28,9 +28,9 @@ const STRATEGIES: Record<string, Lineup> = {
   plague: {
     units: [
       { defId: 'plague-bearer' },
-      { defId: 'blight-witch' },
+      { defId: 'draughtsman-moe' },
       { defId: 'plague-bearer' },
-      { defId: 'blight-witch' },
+      { defId: 'draughtsman-moe' },
       { defId: 'gutter-runt' },
     ],
   },
@@ -47,13 +47,13 @@ const STRATEGIES: Record<string, Lineup> = {
     units: [
       { defId: 'dire-rat' },
       { defId: 'dire-rat' },
-      { defId: 'warren-warden' },
+      { defId: 'md-rattyfock' },
       { defId: 'gutter-runt' },
     ],
   },
   anchor: {
     units: [
-      { defId: 'warren-warden' },
+      { defId: 'md-rattyfock' },
       { defId: 'bone-priest' },
       { defId: 'dire-rat' },
       { defId: 'gutter-runt' },

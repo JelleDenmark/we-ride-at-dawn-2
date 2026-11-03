@@ -58,10 +58,10 @@ const START = '2026-07-06'; // synchronized-week Monday (day 1)
 const SAMPLES = 250;
 
 // Same filter shop.ts's SHOP_UNIT_POOL uses — pup (summon-only) and
-// warren-warden (retired at #52, MD Rattyfock is its stand-in) are excluded.
+// md-rattyfock (retired at #52, MD Rattyfock is its stand-in) are excluded.
 // Gutter-Runt is kept: it's the control filler, so it reads ~0 by
 // construction, which is the roster's explicit zero-line.
-const CANDIDATE_IDS = Object.keys(UNIT_DEFS).filter((id) => id !== 'pup' && id !== 'warren-warden');
+const CANDIDATE_IDS = Object.keys(UNIT_DEFS).filter((id) => id !== 'pup' && id !== 'md-rattyfock');
 
 // Change-invariant control: only ability-less bodies (see header, gap 1).
 const TANK = 'dire-rat';
@@ -136,7 +136,6 @@ function baseline(tier: number, day: number, pos: Position): Measure {
 const rows: Row[] = [];
 for (const id of CANDIDATE_IDS) {
   const def = UNIT_DEFS[id];
-  const condition = def.ability?.condition?.timeOfDay;
   for (let tier = 1; tier <= 3; tier++) {
     const day = TIER_DAY[tier];
     const scrapCost = def.cost * Math.pow(3, tier - 1);
@@ -144,7 +143,7 @@ for (const id of CANDIDATE_IDS) {
     let best: { pos: Position; wavesEff: number; dmgEff: number } | null = null;
     for (const pos of positions) {
       const base = baseline(tier, day, pos);
-      const withUnit = measureUnit(id, tier, day, pos, condition);
+      const withUnit = measureUnit(id, tier, day, pos);
       const wavesEff = ((withUnit.waves - base.waves) / scrapCost) * 100;
       const dmgEff = ((withUnit.damage - base.damage) / scrapCost) * 100;
       if (best === null || wavesEff > best.wavesEff) best = { pos, wavesEff, dmgEff };

@@ -337,7 +337,7 @@ function runWeekBoardMaxing(startDate: string): BoardMaxRunResult {
 
 /** A lucky early merge: the player's first few shop rolls happened to hand
  * them a completed 3-of-a-kind for free (no extra scrap spent versus
- * baseline) — modeled as ONE free tier-2 warren-warden already on the board
+ * baseline) — modeled as ONE free tier-2 md-rattyfock already on the board
  * before any spending happens (a genuine power windfall, not a board-slot
  * cost). Pre-seeding two unmerged tier-1 copies instead (an earlier version
  * of this test) understates a merge windfall: on this shop's actual rolls
@@ -351,7 +351,7 @@ function runWeekWithEarlyMerge(startDate: string): RunResult {
   let build = newBuild(startDate, 1);
   build = {
     ...build,
-    board: [{ defId: 'warren-warden', tier: 2, relicIds: [] }],
+    board: [{ defId: 'md-rattyfock', tier: 2, relicIds: [] }],
   };
   build = spendGreedily(build);
 
@@ -423,7 +423,7 @@ interface Edge {
 const EDGES: Edge[] = [
   { label: '+6 starting scrap (a quarter-day head start)', run: (d) => runWeek(d, 6) },
   { label: '+24 starting scrap (a full extra day-1 stipend)', run: (d) => runWeek(d, 24) },
-  { label: 'lucky early merge (free tier-2 warren-warden day 1, same scrap spent)', run: (d) => runWeekWithEarlyMerge(d) },
+  { label: 'lucky early merge (free tier-2 md-rattyfock day 1, same scrap spent)', run: (d) => runWeekWithEarlyMerge(d) },
 ];
 
 for (const edge of EDGES) {
@@ -606,7 +606,7 @@ const RELIC_DAY = 6; // late-expedition, where relics matter most (cap 7)
 function relicBoard() {
   const cap = boardCapForDay(RELIC_DAY);
   return Array.from({ length: cap }, (_, i) => {
-    if (i === 0) return { defId: 'warren-warden', tier: 2, relicIds: [] as string[] };
+    if (i === 0) return { defId: 'md-rattyfock', tier: 2, relicIds: [] as string[] };
     if (i === cap - 1) return { defId: 'corpse-glutton', tier: 2, relicIds: [] as string[] };
     return { defId: 'gutter-runt', tier: 1, relicIds: [] as string[] };
   });

@@ -13,7 +13,7 @@ const START = '2026-07-06';
 const SAMPLES = 1200;
 const DAY = 7;
 
-const ORDER = ['md-rattyfock', 'ward-weaver', 'press-kin', 'blight-witch', 'dusk-runt', 'bone-priest', 'corpse-glutton', 'dire-rat'];
+const ORDER = ['md-rattyfock', 'ward-weaver', 'press-kin', 'draughtsman-moe', 'dusk-runt', 'bone-priest', 'corpse-glutton', 'dire-rat'];
 // "some relics": front 4 carry one each (best offensive set), back 4 bare, plus team Filth Totem.
 const RELICS = ['gore-cleaver', 'rusted-nail', 'fat-tick', 'fat-tick', null, null, null, null];
 
@@ -31,7 +31,7 @@ function pctl(sorted: number[], p: number): number {
 }
 
 console.log(`enemy HP: perWave=${ENEMY_HEALTH_SCALE_PER_WAVE} quad=${ENEMY_HEALTH_SCALE_QUADRATIC} (UNCHANGED) · day ${DAY} · ${SAMPLES} seeds`);
-console.log('comp: md-rattyfock/ward-weaver/press-kin/blight-witch/dusk-runt/bone-priest/corpse-glutton/dire-rat');
+console.log('comp: md-rattyfock/ward-weaver/press-kin/draughtsman-moe/dusk-runt/bone-priest/corpse-glutton/dire-rat');
 console.log('relics: gore-cleaver + rusted-nail + 2x fat-tick (front 4) + filth-totem team; back 4 bare\n');
 console.log('tier   p5   p25   p50   p75   p95   avg    MAX');
 for (const tier of [2, 3]) {

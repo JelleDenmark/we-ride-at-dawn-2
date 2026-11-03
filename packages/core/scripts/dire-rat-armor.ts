@@ -213,7 +213,7 @@ function aggregateDepth(samples: ThemeSample[], damageReduction: number | undefi
 // change-invariant control (Dire-Rat tank + Gutter-Runt filler, ability-less
 // bodies only), restricted to the tier under test (t3).
 // ---------------------------------------------------------------------------
-const CANDIDATE_IDS = Object.keys(UNIT_DEFS).filter((id) => id !== 'pup' && id !== 'warren-warden');
+const CANDIDATE_IDS = Object.keys(UNIT_DEFS).filter((id) => id !== 'pup' && id !== 'md-rattyfock');
 const CE_SAMPLES = 250;
 
 type Position = 'front' | 'behind';
@@ -261,7 +261,6 @@ function ceBaseline(pos: Position): { waves: number; damage: number } {
 const ceRows: CERow[] = [];
 for (const id of CANDIDATE_IDS) {
   const def = UNIT_DEFS[id];
-  if (def.ability?.condition?.timeOfDay) continue; // day/time-gated units need the blended methodology all-unit-value.ts already covers; out of scope here
   const scrapCost = def.cost * Math.pow(3, TIER - 1);
   let best: { pos: Position; wavesEff: number; dmgEff: number } | null = null;
   for (const pos of ['front', 'behind'] as const) {

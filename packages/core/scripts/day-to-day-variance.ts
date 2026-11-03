@@ -20,8 +20,8 @@ import type { Lineup } from '../src/index';
 // relics on the units that matter (dire-rat front w/ Gore-Cleaver, Corpse-
 // Glutton w/ Fat Tick) — a realistic optimized build, not filler.
 const ORDER = [
-  'dire-rat', 'warren-warden', 'corpse-glutton', 'gnawer',
-  'bone-priest', 'plague-bearer', 'blight-witch', 'dire-rat',
+  'dire-rat', 'md-rattyfock', 'corpse-glutton', 'gnawer',
+  'bone-priest', 'plague-bearer', 'draughtsman-moe', 'dire-rat',
 ];
 
 function fixedRoster(day: number, tier: number): Lineup {

@@ -59,7 +59,7 @@ export function blockHitsForTier(tier: number): number {
 
 /**
  * Poison stacks applied by Plague-Bearer's `poisonFrontEnemy` (`startOfWave`)
- * and Blight-Witch's `poisonAllEnemies` (`startOfWave`), by tier (issue #62,
+ * and Draughtsman Moe's (x2) (`startOfWave`), by tier (issue #62,
  * folding in #59's table). Same shape as `reviveHpForTier`/`blockHitsForTier`
  * — a small explicit table, not a multiplier of a base value.
  *
@@ -92,7 +92,7 @@ export type Effect =
    * Buffs the rat(s) behind the source (or `all` of them) by
    * `attack`/`health`, scaled by `tierAttackMultiplier`/`tierHealthMultiplier`
    * (issue #58) rather than a flat `* tier` — Gnawer wires this to `faint`,
-   * Warren-Warden and MD Rattyfock wire it to `startOfBattle`; both trigger
+   * MD Rattyfock wires it to `startOfBattle`; both trigger
    * kinds fire exactly once per unit instance, ever, so the steeper
    * `3^(tier-1)` curve can't accumulate across the 45-wave battle the way a
    * per-wave-recurring effect could (see the compounding-law note above the
@@ -108,35 +108,14 @@ export type Effect =
    * effect in the game where being in the middle is strictly better than
    * an edge. See `buffAdjacent`'s application in sim.ts for the
    * compounding-law note (it's `startOfBattle`-gated, same shape as
-   * `buffBehind` on Warren-Warden). Magnitude scales via
+   * `buffBehind` on MD Rattyfock). Magnitude scales via
    * `tierAttackMultiplier`/`tierHealthMultiplier` (issue #58), same
    * fire-once reasoning as `buffBehind`.
    */
   | { kind: 'buffAdjacent'; attack: number; health: number }
+  /** `stacks` multiplies `poisonStacksForTier` (Plague-Bearer 1, Draughtsman Moe 2). */
   | { kind: 'poisonFrontEnemy'; stacks: number }
   | { kind: 'poisonTarget'; stacks: number }
-  /**
-   * Blight-Witch (issue #62). Poisons every living enemy currently on the
-   * board, not just the front one — the first effect in the game to hit the
-   * whole opposing wave at once. Stack count is NOT carried on the effect —
-   * it's looked up per-tier via `poisonStacksForTier` at apply time, same
-   * pattern as `revive`'s `reviveHpForTier` lookup. Always wired to
-   * `startOfWave` (never `afterAttack`): `afterAttack` only fires for
-   * whichever unit is currently front, which both wasted this effect on an
-   * enemy already dying from the clash and left a back-line Blight-Witch
-   * dead weight. `startOfWave` fires for every unit regardless of board
-   * slot and lands on the whole wave before it's been chipped by combat.
-   *
-   * Compounding-law note: enemies are re-instantiated every wave and
-   * poison never carries across waves (see `waveClear`'s antidote, and
-   * enemies simply not existing yet next wave), so this cannot accumulate
-   * across the 45-wave battle. Multiple Blight-Witches stack additively
-   * within a single wave — each one re-applies `poisonStacksForTier(tier)`
-   * to every living enemy — but that's bounded by fresh enemies next wave
-   * and the board cap on how many Blight-Witches can even be fielded, not
-   * a persistent-horde compounding vector like the shipped exploits.
-   */
-  | { kind: 'poisonAllEnemies' }
   /** `maxGains`: how many times this unit may grow in one battle (absent = unlimited). */
   | { kind: 'gainStats'; attack: number; health: number; maxGains?: number }
   /**
@@ -159,13 +138,12 @@ export type Effect =
    * Whole-team stat grant (issue #12: Dawn-Runt/Dusk-Runt) — every horde unit
    * currently on the board gets `+attack`/`+health`, including the caster
    * itself (unlike `buffBehind`, which deliberately excludes the caster —
-   * see Warren-Warden). Only ever wired to a `startOfBattle` trigger, so it
-   * fires once per unit instance, ever, exactly like Warren-Warden's
+   * see MD Rattyfock). Only ever wired to a `startOfBattle` trigger, so it
+   * fires once per unit instance, ever, exactly like MD Rattyfock's
    * `buffBehind`, and cannot compound across the 45-wave battle. Magnitude
    * scales via `tierAttackMultiplier`/`tierHealthMultiplier` (issue #58)
    * instead of a flat `* tier`, same fire-once reasoning as `buffBehind`/
-   * `buffAdjacent` above. See the `condition` field on `Ability` for how
-   * this pairs with a time-of-day gate.
+   * `buffAdjacent` above.
    */
   | { kind: 'teamBuff'; attack: number; health: number };
 
@@ -185,7 +163,7 @@ export type TimeOfDay = 'beforeNoon' | 'afterNoon';
  *
  * The distinction is load-bearing. `simulate` runs 45 waves against one
  * persistent horde, so any *permanent* effect on a per-wave trigger compounds
- * ~45× without bound: four tier-3 Warren-Wardens re-buffing "+1/+1 to all
+ * ~45× without bound: four tier-3 MD Rattyfocks re-buffing "+1/+1 to all
  * behind" every wave took a 6-attack rat to 241 and full-cleared the gauntlet.
  * Rule of thumb: **`startOfWave` is only for effects that do not accumulate** —
  * summoning a body that will die, re-applying poison that clears at `waveClear`.
@@ -203,15 +181,6 @@ export type TimeOfDay = 'beforeNoon' | 'afterNoon';
 export interface Ability {
   trigger: 'startOfBattle' | 'startOfWave' | 'faint' | 'afterAttack' | 'allyFaint';
   effect: Effect;
-  /**
-   * Gate the ability's firing on the real-world half of the day the ride
-   * belongs to (issue #12). Evaluated against `Lineup.timeOfDay` at the same
-   * point the trigger itself would otherwise fire (see `fireEntryTriggers` in
-   * sim.ts) — a `startOfBattle` ability still only ever gets its one shot per
-   * unit instance, it just no-ops that shot when the condition doesn't match,
-   * rather than retrying on a later wave.
-   */
-  condition?: { timeOfDay: TimeOfDay };
 }
 
 export interface UnitDef {
@@ -231,14 +200,6 @@ export interface UnitDef {
    * small hits, near-useless against brutes.
    */
   damageReduction?: number;
-  /**
-   * Day-gated shop availability (issue #12), same mechanism as
-   * `boardCapForDay` — a pure function of the expedition day, no new
-   * per-account state. Absent = available from day 1 (every pre-existing
-   * unit). Once a unit's `unlockDay` is reached it stays in the pool for
-   * every later day too — this is not a day-exclusive appearance.
-   */
-  unlockDay?: number;
 }
 
 export interface LineupUnit {
@@ -263,9 +224,8 @@ export interface Lineup {
    */
   combatCap?: number;
   /**
-   * Real-world half-day this ride's rats fight in (issue #12) — drives
-   * Dawn-Runt/Dusk-Runt's `condition.timeOfDay` gate. Omitted = neither
-   * condition matches, so any lineup that predates or doesn't care about
+   * Real-world half-day (issue #12). No longer gates anything; kept as an
+   * optional field so old lineups stay valid. Omitted = any lineup that predates or doesn't care about
    * time-of-day (every golden log, every existing test) behaves exactly as
    * it did before this field existed. The app layer resolves this from the
    * wall clock (see `copenhagenSeconds`/`timeOfDayAt` in App.svelte);
@@ -296,10 +256,10 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
     desc: 'each wave: poisons front foe',
     ability: { trigger: 'startOfWave', effect: { kind: 'poisonFrontEnemy', stacks: 1 } },
   },
-  'blight-witch': {
-    id: 'blight-witch', name: 'Blight-Witch', attack: 3, health: 3, cost: 8,
-    desc: 'each wave: poisons the whole enemy line (scales ★)',
-    ability: { trigger: 'startOfWave', effect: { kind: 'poisonAllEnemies' } },
+  'draughtsman-moe': {
+    id: 'draughtsman-moe', name: 'Draughtsman Moe', attack: 3, health: 3, cost: 7,
+    desc: 'each wave: heavily poisons the front foe (scales ★)',
+    ability: { trigger: 'startOfWave', effect: { kind: 'poisonFrontEnemy', stacks: 2 } },
   },
   gnawer: {
     id: 'gnawer', name: 'Gnawer', attack: 3, health: 1, cost: 4,
@@ -316,29 +276,15 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
     desc: 'faint: revives first fallen at 1/10/20 HP (tier), capped at their own max',
     ability: { trigger: 'faint', effect: { kind: 'revive' } },
   },
-  'warren-warden': {
-    id: 'warren-warden', name: 'Warren-Warden', attack: 2, health: 6, cost: 6,
-    desc: 'battle: buffs all rats behind it (scales ★)',
-    ability: { trigger: 'startOfBattle', effect: { kind: 'buffBehind', attack: 1, health: 1, all: true } },
-  },
   'dire-rat': {
     id: 'dire-rat', name: 'Dire-Rat', attack: 4, health: 5, cost: 8,
     desc: 'hide like a door: shrugs off 2 from every blow',
     damageReduction: 2,
-    // Day-1 shop is deliberately kept plain (Jesper, 2026-07-11): the three
-    // strongest early picks — the armored tank, the Season-1 anchor, and the
-    // front-shield — hold back to day 2, so day 1 is a humble scramble and the
-    // shop gets visibly stronger as the expedition opens up (days 2-4 are the
-    // exciting stretch). Only gates the SHOP roll; a unit already owned/on the
-    // board is unaffected, and the balance scripts build lineups directly so
-    // they don't see this gate.
-    unlockDay: 2,
   },
   'md-rattyfock': {
     id: 'md-rattyfock', name: 'MD Rattyfock', attack: 2, health: 6, cost: 6,
     desc: 'Season 1 survivor, patched and returned; battle: buffs all rats behind it (scales ★)',
     ability: { trigger: 'startOfBattle', effect: { kind: 'buffBehind', attack: 1, health: 1, all: true } },
-    unlockDay: 2, // day-1 shop kept plain — see Dire-Rat's note.
   },
   'press-kin': {
     id: 'press-kin', name: 'Press-Kin', attack: 2, health: 4, cost: 5,
@@ -349,33 +295,17 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
     id: 'ward-weaver', name: 'Ward-Weaver', attack: 1, health: 3, cost: 6,
     desc: 'each wave, blocks the front rat’s hit outright — ★2 blocks 2 hits, ★3 blocks 3; resets every wave',
     ability: { trigger: 'startOfWave', effect: { kind: 'blockFrontHits' } },
-    unlockDay: 2, // day-1 shop kept plain — see Dire-Rat's note.
   },
-  // Issue #12: a parallel "Runt" pair (Gutter-Runt precedent) tied to the
-  // game's dawn/dusk duality rather than literal noon-splitting — the actual
-  // trigger condition is the broader before/after-noon Copenhagen split, but
-  // the flavor leans poetic. Day-gated (unlockDay) rather than depth-gated,
-  // per #6's fairness resolution, so the shop stays a pure function of
-  // (date, day) with no new per-account state.
+  // The Runt pair: whole-team attack (Dawn) / health (Dusk), no time-of-day gate.
   'dawn-runt': {
     id: 'dawn-runt', name: 'Dawn-Runt', attack: 1, health: 2, cost: 4,
-    desc: 'thrives in the grey light before the city wakes; battle (before noon): buffs the horde’s attack (scales ★)',
-    ability: {
-      trigger: 'startOfBattle',
-      effect: { kind: 'teamBuff', attack: 2, health: 0 },
-      condition: { timeOfDay: 'beforeNoon' },
-    },
-    unlockDay: 3,
+    desc: 'battle: buffs the whole horde’s attack (scales ★)',
+    ability: { trigger: 'startOfBattle', effect: { kind: 'teamBuff', attack: 1, health: 0 } },
   },
   'dusk-runt': {
     id: 'dusk-runt', name: 'Dusk-Runt', attack: 1, health: 2, cost: 4,
-    desc: 'comes alive as the drains go black again, ahead of the next dawn’s ride; battle (after noon): buffs the horde’s health (scales ★)',
-    ability: {
-      trigger: 'startOfBattle',
-      effect: { kind: 'teamBuff', attack: 0, health: 2 },
-      condition: { timeOfDay: 'afterNoon' },
-    },
-    unlockDay: 3,
+    desc: 'battle: buffs the whole horde’s health (scales ★)',
+    ability: { trigger: 'startOfBattle', effect: { kind: 'teamBuff', attack: 0, health: 2 } },
   },
 };
 

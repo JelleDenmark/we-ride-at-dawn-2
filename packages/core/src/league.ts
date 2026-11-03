@@ -1,7 +1,7 @@
 import { UNIT_DEFS, type Lineup } from './data/units';
 import { RELIC_DEFS } from './data/relics';
 import { BOARD_CAP } from './sim';
-import { MAX_TIER } from './shop';
+import { MAX_TIER, MAX_RELICS_PER_RAT } from './shop';
 import { simulateDuel } from './duel';
 import { xorshift128 } from './prng';
 import { fnv1a } from './seed';
@@ -76,6 +76,7 @@ export function validateBoard(board: Lineup): { ok: true } | { ok: false; reason
     const tier = u.tier ?? 1;
     if (!Number.isInteger(tier) || tier < 1 || tier > MAX_TIER) return { ok: false, reason: `bad tier ${tier}` };
     if (u.attackMod !== undefined) return { ok: false, reason: 'board carries a night modifier' };
+    if ((u.relicIds ?? []).length > MAX_RELICS_PER_RAT) return { ok: false, reason: 'too many relics on one rat' };
     const seen = new Set<string>();
     for (const id of u.relicIds ?? []) {
       if (RELIC_DEFS[id]?.scope !== 'unit' || seen.has(id)) return { ok: false, reason: `bad relic "${id}"` };

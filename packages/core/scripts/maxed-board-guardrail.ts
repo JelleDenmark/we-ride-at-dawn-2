@@ -39,9 +39,9 @@ const RELICS = [
 // Ward-Weaver, Press-Kin, Blight-Witch...); `press-kin-core` clusters the
 // neighbour-buffer in the middle where its buff hits the most rats.
 const COMPS: Record<string, string[]> = {
-  original: ['dire-rat', 'warren-warden', 'corpse-glutton', 'gnawer', 'bone-priest', 'plague-bearer', 'blight-witch', 'dire-rat'],
-  'top-depth': ['md-rattyfock', 'ward-weaver', 'press-kin', 'blight-witch', 'dusk-runt', 'bone-priest', 'corpse-glutton', 'dire-rat'],
-  'press-kin-core': ['ward-weaver', 'md-rattyfock', 'press-kin', 'dusk-runt', 'blight-witch', 'md-rattyfock', 'corpse-glutton', 'bone-priest'],
+  original: ['dire-rat', 'md-rattyfock', 'corpse-glutton', 'gnawer', 'bone-priest', 'plague-bearer', 'draughtsman-moe', 'dire-rat'],
+  'top-depth': ['md-rattyfock', 'ward-weaver', 'press-kin', 'draughtsman-moe', 'dusk-runt', 'bone-priest', 'corpse-glutton', 'dire-rat'],
+  'press-kin-core': ['ward-weaver', 'md-rattyfock', 'press-kin', 'dusk-runt', 'draughtsman-moe', 'md-rattyfock', 'corpse-glutton', 'bone-priest'],
 };
 
 function board(order: string[]): Lineup {

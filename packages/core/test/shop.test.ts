@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { validateBoard } from '../src/league';
 import {
+  seasonUnitPool,
+  SEASON_UNIT_COUNT,
   newBuild,
   buyUnit,
   buyRelic,
@@ -93,7 +96,7 @@ describe('shop basics', () => {
       ...full,
       bench: [
         { defId: 'plague-bearer', tier: 1, relicIds: [] },
-        { defId: 'warren-warden', tier: 1, relicIds: [] },
+        { defId: 'md-rattyfock', tier: 1, relicIds: [] },
         { defId: 'gutter-runt', tier: 1, relicIds: [] },
       ],
     };
@@ -593,12 +596,12 @@ describe('expedition', () => {
         { defId: 'brood-mother', tier: 1, relicIds: [] },
         { defId: 'bone-priest', tier: 1, relicIds: [] },
         { defId: 'corpse-glutton', tier: 1, relicIds: [] },
-        { defId: 'blight-witch', tier: 1, relicIds: [] },
+        { defId: 'draughtsman-moe', tier: 1, relicIds: [] },
       ],
       bench: [],
       shop: {
         ...base.shop,
-        slots: [{ kind: 'unit' as const, defId: 'warren-warden' }, ...base.shop.slots.slice(1)],
+        slots: [{ kind: 'unit' as const, defId: 'md-rattyfock' }, ...base.shop.slots.slice(1)],
       },
     };
     const res = buyUnit(s, 0);
@@ -780,7 +783,7 @@ describe('bench', () => {
       ],
       bench: [
         { defId: 'plague-bearer', tier: 1, relicIds: [] },
-        { defId: 'warren-warden', tier: 1, relicIds: [] },
+        { defId: 'md-rattyfock', tier: 1, relicIds: [] },
         { defId: 'gutter-runt', tier: 1, relicIds: [] },
       ],
       shop: {
@@ -902,7 +905,7 @@ describe('bench', () => {
       ],
       bench: [
         { defId: 'plague-bearer', tier: 1, relicIds: [] },
-        { defId: 'warren-warden', tier: 1, relicIds: [] },
+        { defId: 'md-rattyfock', tier: 1, relicIds: [] },
         { defId: 'dire-rat', tier: 1, relicIds: [] },
       ],
       shop: {
@@ -1137,7 +1140,7 @@ describe('swapping bench and board', () => {
       ],
       bench: [
         { defId: 'plague-bearer', tier: 1, relicIds: [] },
-        { defId: 'warren-warden', tier: 1, relicIds: [] },
+        { defId: 'md-rattyfock', tier: 1, relicIds: [] },
         { defId: 'gutter-runt', tier: 1, relicIds: [] },
       ],
     };
@@ -1146,7 +1149,7 @@ describe('swapping bench and board', () => {
     if (res.ok) {
       expect(res.state.board).toHaveLength(5);
       expect(res.state.bench).toHaveLength(3);
-      expect(res.state.board[2].defId).toBe('warren-warden');
+      expect(res.state.board[2].defId).toBe('md-rattyfock');
       expect(res.state.bench[1].defId).toBe('rat-piper');
     }
   });
@@ -1352,89 +1355,68 @@ describe('buyable horde slots (issue #9)', () => {
   });
 });
 
-describe('day-gated shop unlocks (issue #12: Dawn-Runt/Dusk-Runt)', () => {
-  // Roll many offerings across many dates/roll numbers for a given day and
-  // report whether either new unit ever appears — a much larger sample than
-  // SHOP_UNIT_SLOTS so a true negative (never offered) is a real signal, not
-  // just an unlucky small sample.
-  const everAppears = (day: number, defId: string): boolean => {
-    for (let d = 0; d < 40; d++) {
-      const date = `2026-08-${String(d + 1).padStart(2, '0')}`;
-      for (let roll = 0; roll < 10; roll++) {
-        const slots = rollOfferings(date, roll, [], day);
-        if (slots.some((s) => s.kind === 'unit' && s.defId === defId)) return true;
+describe('season rotation', () => {
+  const ids = (season: string) => seasonUnitPool(season).map((u) => u.id);
+
+  it('offers exactly SEASON_UNIT_COUNT of the 14 units, deterministically', () => {
+    expect(ids('2026-07-06')).toHaveLength(SEASON_UNIT_COUNT);
+    expect(ids('2026-07-06')).toEqual(ids('2026-07-06'));
+  });
+
+  it('always keeps one unit of every strategy, and differs between seasons', () => {
+    const groups = [
+      ['rat-piper', 'brood-mother'],
+      ['plague-bearer', 'draughtsman-moe'],
+      ['gnawer', 'corpse-glutton', 'bone-priest'],
+      ['dire-rat', 'md-rattyfock'],
+    ];
+    const seen = new Set<string>();
+    for (let w = 0; w < 30; w++) {
+      const season = seasonIdFor(`2026-0${1 + (w % 9)}-${String(1 + w).padStart(2, '0')}`);
+      const pool = ids(season);
+      seen.add(pool.join());
+      for (const g of groups) expect(g.some((id) => pool.includes(id))).toBe(true);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it('shop rolls only ever offer units in the date\'s season pool', () => {
+    const pool = ids(seasonIdFor('2026-08-12'));
+    for (let roll = 0; roll < 30; roll++) {
+      for (const sl of rollOfferings('2026-08-12', roll, [])) {
+        if (sl.kind === 'unit') expect(pool).toContain(sl.defId);
       }
     }
-    return false;
+  });
+
+  it('no shop unit carries a day gate or a removed id', () => {
+    expect(UNIT_DEFS['warren-warden']).toBeUndefined();
+    expect(UNIT_DEFS['blight-witch']).toBeUndefined();
+    expect(Object.values(UNIT_DEFS).filter((u) => u.cost > 0)).toHaveLength(14);
+    expect(Object.keys(RELIC_DEFS)).toHaveLength(9);
+  });
+});
+
+describe('relic limit per rat', () => {
+  const withRelicShop = (relicIds: string[]) => {
+    const base = newBuild('2026-07-04', 1);
+    return {
+      ...base,
+      scrap: 99,
+      board: [{ defId: 'gnawer', tier: 1, relicIds }],
+      shop: { ...base.shop, slots: [{ kind: 'relic' as const, relicId: 'gore-cleaver' }] },
+    };
   };
 
-  it('Dawn-Runt never appears before day 3', () => {
-    expect(everAppears(1, 'dawn-runt')).toBe(false);
-    expect(everAppears(2, 'dawn-runt')).toBe(false);
+  it('a rat can carry 3 relics but not a 4th', () => {
+    expect(buyRelic(withRelicShop(['rusted-nail', 'glass-shard']), 0, 0).ok).toBe(true);
+    const full = buyRelic(withRelicShop(['rusted-nail', 'glass-shard', 'fat-tick']), 0, 0);
+    expect(full.ok).toBe(false);
+    expect(hasValidRelicTarget(withRelicShop(['rusted-nail', 'glass-shard', 'fat-tick']), 'gore-cleaver')).toBe(false);
   });
 
-  it('Dawn-Runt can appear from day 3 onward, every later day too (not day-exclusive)', () => {
-    for (const day of [3, 4, 5, 6, 7]) expect(everAppears(day, 'dawn-runt')).toBe(true);
-  });
-
-  it('Dusk-Runt never appears before day 3', () => {
-    expect(everAppears(1, 'dusk-runt')).toBe(false);
-    expect(everAppears(2, 'dusk-runt')).toBe(false);
-  });
-
-  it('Dusk-Runt can appear from day 3 onward, every later day too (not day-exclusive), same as Dawn-Runt', () => {
-    for (const day of [3, 4, 5, 6, 7]) expect(everAppears(day, 'dusk-runt')).toBe(true);
-  });
-
-  it('the three day-2 picks (Dire-Rat, MD Rattyfock, Ward-Weaver) never appear on day 1', () => {
-    // Day-1 shop kept deliberately plain (2026-07-11): the armored tank, the
-    // Season-1 anchor, and the front-shield hold back to day 2.
-    for (const defId of ['dire-rat', 'md-rattyfock', 'ward-weaver']) {
-      expect(everAppears(1, defId)).toBe(false);
-    }
-  });
-
-  it('the three day-2 picks appear from day 2 onward, every later day too', () => {
-    for (const defId of ['dire-rat', 'md-rattyfock', 'ward-weaver']) {
-      for (const day of [2, 3, 4, 5, 6, 7]) expect(everAppears(day, defId)).toBe(true);
-    }
-  });
-
-  it('newBuild wires the shop day through to rollOfferings (day 1 build never offers either Runt)', () => {
-    for (let d = 0; d < 20; d++) {
-      const date = `2026-09-${String(d + 1).padStart(2, '0')}`;
-      const s = newBuild(date, 1);
-      expect(s.shop.slots.some((sl) => sl.kind === 'unit' && (sl.defId === 'dawn-runt' || sl.defId === 'dusk-runt'))).toBe(false);
-    }
-  });
-
-  it('days before any unlockDay in play roll byte-identical offerings to the pre-#12 pool (no regression)', () => {
-    // day-agnostic pool (no unlockDay units eligible yet) must match calling
-    // rollOfferings with its old implicit default in spirit: day 1 and day 2
-    // exclude both new units, so their rolls are unaffected by this feature.
-    for (const day of [1, 2]) {
-      const a = rollOfferings('2026-07-03', 0, [], day);
-      const b = rollOfferings('2026-07-03', 0, [], day);
-      expect(a).toEqual(b);
-      expect(a.some((s) => s.kind === 'unit' && (s.defId === 'dawn-runt' || s.defId === 'dusk-runt'))).toBe(false);
-    }
-  });
-
-  it('rerollShop and autoRerollShop respect the build day, not just newBuild', () => {
-    // A day-4 build should be able to roll either Runt on reroll too, not
-    // just on the initial shop — this exercises the s.day plumbing through
-    // rerollShop/autoRerollShop, not just newBuild's initial rollOfferings.
-    let found = false;
-    let s = newBuild('2026-07-04', 4);
-    for (let i = 0; i < 40 && !found; i++) {
-      s = { ...s, scrap: 50 };
-      const rolled = rerollShop(s);
-      if (!rolled.ok) break;
-      s = rolled.state;
-      if (s.shop.slots.some((sl) => sl.kind === 'unit' && (sl.defId === 'dawn-runt' || sl.defId === 'dusk-runt'))) {
-        found = true;
-      }
-    }
-    expect(found).toBe(true);
+  it('validateBoard rejects 4 relics on one rat', () => {
+    const r = validateBoard({ units: [{ defId: 'gnawer', relicIds: ['rusted-nail', 'glass-shard', 'fat-tick', 'tail-charm'] }] });
+    expect(r.ok).toBe(false);
   });
 });

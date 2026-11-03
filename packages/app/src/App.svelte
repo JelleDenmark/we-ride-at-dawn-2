@@ -288,11 +288,6 @@
     allyFaint: 'Whenever a friendly rat faints,',
   };
 
-  const TIME_OF_DAY_LABEL: Record<string, string> = {
-    beforeNoon: ' (before noon)',
-    afterNoon: ' (after noon)',
-  };
-
   // --- Inspect-sheet ability text (Jesper, pre-launch): the tile shows only
   // a keyword tag, so THIS is where a player learns what a unit really does —
   // including exactly how much it scales per star. Numbers come from the same
@@ -336,7 +331,7 @@
         what = `grants ${buffScale(e.attack, e.health)} to ${e.all ? 'every rat behind it' : 'the rat behind it'}`;
         break;
       case 'poisonFrontEnemy':
-        what = `applies ${poisonStacksForTier(1)} poison (★2 ${poisonStacksForTier(2)} · ★3 ${poisonStacksForTier(3)}) to the frontmost enemy — poison bites for its full count every clash and clears when the wave falls`;
+        what = `applies ${e.stacks * poisonStacksForTier(1)} poison (★2 ${e.stacks * poisonStacksForTier(2)} · ★3 ${e.stacks * poisonStacksForTier(3)}) to the frontmost enemy — poison bites for its full count every clash and clears when the wave falls`;
         break;
       case 'poisonTarget':
         what = `applies ${poisonStacksForTier(1)} poison (★2 ${poisonStacksForTier(2)} · ★3 ${poisonStacksForTier(3)}) to whatever it just struck`;
@@ -353,14 +348,8 @@
       case 'teamBuff':
         what = `grants ${buffScale(e.attack, e.health)} to the whole horde, itself included`;
         break;
-      case 'poisonAllEnemies':
-        what = `rots every enemy in the wave with ${poisonStacksForTier(1)} poison (★2 ${poisonStacksForTier(2)} · ★3 ${poisonStacksForTier(3)}) — poison bites for its full count every clash, ignores armor, and clears when the wave falls`;
-        break;
     }
-    const when = def.ability.condition
-      ? `${TIME_OF_DAY_LABEL[def.ability.condition.timeOfDay] ?? ''}`
-      : '';
-    const abilityPart = `${TRIGGER_WHEN[def.ability.trigger]} it ${what}${when}.`;
+    const abilityPart = `${TRIGGER_WHEN[def.ability.trigger]} it ${what}.`;
     return armorSentence ? `${abilityPart} ${armorSentence}` : abilityPart;
   }
 
@@ -374,7 +363,6 @@
   // destination, so the tile no longer needs to repeat it. Symbol register
   // matches the game's existing restrained-glyph vocabulary (⚙ ❄ ✦ ★), not
   // illustrated icons or emoji.
-  const TIME_OF_DAY_ICON: Record<string, string> = { beforeNoon: '☀', afterNoon: '☾' };
 
   function keywordTag(def: UnitDef): string | null {
     const ability = def.ability;
@@ -387,12 +375,10 @@
         case 'gainStats':
           return '▲ buff';
         case 'teamBuff': {
-          const icon = ability.condition ? (TIME_OF_DAY_ICON[ability.condition.timeOfDay] ?? '▲') : '▲';
-          return `${icon} buff`;
+          return '▲ buff';
         }
         case 'poisonFrontEnemy':
         case 'poisonTarget':
-        case 'poisonAllEnemies':
           return '☠ poison';
         case 'revive':
           return '✚ revive';

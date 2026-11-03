@@ -15,7 +15,7 @@ import { UNIT_DEFS, type Lineup } from '../src/data/units';
 const HORDE: Lineup = {
   units: [
     { defId: 'dire-rat' },
-    { defId: 'warren-warden' },
+    { defId: 'md-rattyfock' },
     { defId: 'gnawer' },
     { defId: 'plague-bearer' },
     { defId: 'gutter-runt' },

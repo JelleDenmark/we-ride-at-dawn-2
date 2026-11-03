@@ -154,12 +154,6 @@ export function simulate(
     horde: lineup.combatCap ?? BOARD_CAP,
     gauntlet: duel ? (duel.combatCap ?? BOARD_CAP) : (lineup.combatCap ?? BOARD_CAP),
   };
-  // Real-world half-day this ride belongs to (issue #12: Dawn-Runt/Dusk-Runt).
-  // Never read from the clock here — the app layer resolves it and passes it
-  // in via Lineup.timeOfDay. Omitted = matches neither ability condition, so
-  // any lineup that doesn't know about time-of-day is unaffected.
-  const timeOfDay = lineup.timeOfDay;
-
   const instantiate = (
     def: UnitDef,
     side: Side,
@@ -320,21 +314,16 @@ export function simulate(
         break;
       }
       case 'poisonFrontEnemy': {
-        // Plague-Bearer (issue #62): stack count now comes from
-        // `poisonStacksForTier` (1/3/5) instead of a flat `effect.stacks *
-        // tier` (1/2/3), same table Blight-Witch's `poisonAllEnemies` uses.
-        // Deliberately stays single-front-target — this is what keeps
-        // Plague-Bearer (cheap, focused front poison) differentiated from
-        // Blight-Witch (pricier whole-wave rot).
+        // Stacks = effect.stacks x the tier table (Plague-Bearer 1x, Draughtsman Moe 2x).
         const target = opposing(source.side)[0];
-        if (target) applyPoisonStacks(target, poisonStacksForTier(tier));
+        if (target) applyPoisonStacks(target, effect.stacks * poisonStacksForTier(tier));
         break;
       }
       case 'poisonTarget': {
         // Midden-Hag (data/enemies.ts), the only user: `afterAttack`, so this
         // fires on every clash tick the enemy survives, not once per wave.
         // NOTE: uses flat `effect.stacks * tier` scaling, unlike its poison
-        // siblings (poisonFrontEnemy/poisonAllEnemies), which both read from
+        // siblings (poisonFrontEnemy), which reads from
         // the shared `poisonStacksForTier` table — no design note explains
         // the exemption; flagged here as an inconsistency, not confirmed
         // intentional. Compounding-law check: safe across the 45-wave battle
@@ -344,27 +333,6 @@ export function simulate(
         // one wave given the per-tick trigger — not benchmarked.
         const target = opposing(source.side)[0];
         if (target && target.health > 0) applyPoisonStacks(target, effect.stacks * tier);
-        break;
-      }
-      case 'poisonAllEnemies': {
-        // Blight-Witch (issue #62). `startOfWave`-fired, so `fireEntryTriggers`
-        // runs this for every live Blight-Witch on the board, in board order,
-        // regardless of slot — fixing the old `afterAttack` positional dead
-        // zone where a back-line Blight-Witch never got to act. Hits every
-        // living enemy present at wave start, not just `opposing(...)[0]`.
-        //
-        // Compounding-law check: enemies are re-instantiated every wave and
-        // poison never persists on the horde (`waveClear`'s antidote), so
-        // this per-wave AoE cannot accumulate across the 45-wave battle.
-        // Multiple Blight-Witches stack additively within a single wave
-        // (each re-applies `poisonStacksForTier(tier)` to every enemy), but
-        // that's bounded by fresh enemies next wave and the board cap on
-        // how many Blight-Witches can be fielded at once — not a
-        // persistent-horde compounding vector like the shipped exploits.
-        const stacks = poisonStacksForTier(tier);
-        for (const target of opposing(source.side)) {
-          if (target.health > 0) applyPoisonStacks(target, stacks);
-        }
         break;
       }
       case 'gainStats': {
@@ -515,7 +483,7 @@ export function simulate(
    * `startOfWave` for every unit, `startOfBattle` only for units that have
    * never fired it. See `Ability` in data/units.ts for why the split exists.
    */
-  const TARGETS_ENEMY = new Set(['poisonFrontEnemy', 'poisonTarget', 'poisonAllEnemies']);
+  const TARGETS_ENEMY = new Set(['poisonFrontEnemy', 'poisonTarget']);
   const fireEntryTriggers = (board: BattleUnit[], phase?: 'own' | 'foe'): void => {
     for (const unit of [...board]) {
       const trigger = unit.ability?.trigger;
@@ -528,14 +496,6 @@ export function simulate(
         if (unit.startOfBattleFired) continue;
         unit.startOfBattleFired = true;
       }
-      // Time-of-day-conditional abilities (Dawn-Runt/Dusk-Runt, issue #12):
-      // only fire when the ride's resolved time-of-day matches. A
-      // startOfBattle ability still only ever gets its one shot per unit
-      // instance (the flag above is already set) — a mismatched condition
-      // just means that one shot is a no-op, it does not retry on a later
-      // wave once the real-world half-day flips mid-battle.
-      const condition = unit.ability?.condition;
-      if (condition && condition.timeOfDay !== timeOfDay) continue;
       const index = board.findIndex((u) => u.instanceId === unit.instanceId);
       if (index === -1) continue;
       applyEffect(unit, index, false);

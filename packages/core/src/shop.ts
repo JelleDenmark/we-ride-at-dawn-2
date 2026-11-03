@@ -9,6 +9,8 @@ export const REROLL_COST = 2;
 export const SHOP_UNIT_SLOTS = 4;
 export const SHOP_RELIC_SLOTS = 2;
 export const MAX_TIER = 3;
+/** Most relics one rat can carry. */
+export const MAX_RELICS_PER_RAT = 3;
 export const SEASON_DAYS = 7;
 /** Bench slots: storage for rats outside the fighting horde (never enter
  * `simulate`). Small on purpose — it's for holding merge candidates and
@@ -192,46 +194,47 @@ export interface BuildState {
 
 export type ActionResult = { ok: true; state: BuildState } | { ok: false; reason: string };
 
-// 'warren-warden' is excluded seasonally, not permanently: MD Rattyfock
-// (issue #23) is a same-stats reskin of it, added as a tribute to last
-// season's winner, and having both in rotation at once is redundant. Its
-// UNIT_DEFS entry stays intact (existing tests/golden logs/replays still
-// reference it directly) — only its presence in the purchasable pool is
-// gone. A future season could drop this filter to bring it back.
-const SHOP_UNIT_POOL = Object.values(UNIT_DEFS).filter(
-  (u) => u.id !== 'pup' && u.id !== 'warren-warden'
-);
+const SHOP_UNIT_POOL = Object.values(UNIT_DEFS).filter((u) => u.id !== 'pup');
 const SHOP_RELIC_POOL = Object.values(RELIC_DEFS);
 
+/** Units on offer per season (of the full roster). */
+export const SEASON_UNIT_COUNT = 10;
+
+/** One of each strategy is always on offer. */
+const STRATEGY_UNITS: string[][] = [
+  ['rat-piper', 'brood-mother'], // swarm
+  ['plague-bearer', 'draughtsman-moe'], // plague
+  ['gnawer', 'corpse-glutton', 'bone-priest'], // sacrifice
+  ['dire-rat', 'md-rattyfock'], // bruiser
+];
+
 /**
- * Day-gated shop pool (issue #12: Dawn-Runt/Dusk-Runt), same mechanism as
- * `boardCapForDay` — a pure function of the day number, no new per-account
- * state. Units with no `unlockDay` are available from day 1, exactly as
- * before this feature existed. Preserves `SHOP_UNIT_POOL`'s insertion order,
- * so for any day before the earliest `unlockDay` in play, this filters down
- * to byte-identical output to the old unconditional pool — existing golden
- * shop rolls for those days are unaffected.
+ * The units the shop rolls this season: a deterministic SEASON_UNIT_COUNT
+ * subset seeded from the season id, in roster order.
  */
-function shopUnitPoolForDay(day: number): UnitDef[] {
-  return SHOP_UNIT_POOL.filter((u) => u.unlockDay === undefined || day >= u.unlockDay);
+export function seasonUnitPool(seasonId: string): UnitDef[] {
+  const rng = xorshift128(fnv1a(`${seasonId}#roster`));
+  const picked = new Set<string>(STRATEGY_UNITS.map((g) => g[rng.int(g.length)]));
+  const rest = SHOP_UNIT_POOL.filter((u) => !picked.has(u.id));
+  while (picked.size < SEASON_UNIT_COUNT && rest.length > 0) {
+    picked.add(rest.splice(rng.int(rest.length), 1)[0].id);
+  }
+  return SHOP_UNIT_POOL.filter((u) => picked.has(u.id));
 }
 
 /**
- * Offerings are deterministic for a given (date, roll #, owned team relics,
- * day). A team relic the horde already carries can never be bought again, so
+ * Offerings are deterministic for a given (date, roll #, owned team relics);
+ * units come from the season's rotation. A team relic the horde already carries can never be bought again, so
  * it's filtered out of the pool rather than rolled as a dead, unbuyable
- * stall. `day` defaults to 1 (the pre-#12 pool, minus Dawn-Runt/Dusk-Runt),
- * so callers that omit every optional argument (and the golden path) are
- * byte-identical to before.
+ * stall.
  */
 export function rollOfferings(
   date: string,
   roll: number,
-  ownedTeamRelics: readonly string[] = [],
-  day = 1
+  ownedTeamRelics: readonly string[] = []
 ): ShopSlot[] {
   const rng = xorshift128(fnv1a(`${date}#shop#${roll}`));
-  const unitPool = shopUnitPoolForDay(day);
+  const unitPool = seasonUnitPool(seasonIdFor(date));
   const relicPool = SHOP_RELIC_POOL.filter(
     (r) => !(r.scope === 'team' && ownedTeamRelics.includes(r.id))
   );
@@ -246,7 +249,7 @@ export function rollOfferings(
 }
 
 export function newBuild(date: string, day = 1, ownedTeamRelics: readonly string[] = []): BuildState {
-  const slots = rollOfferings(date, 0, ownedTeamRelics, day);
+  const slots = rollOfferings(date, 0, ownedTeamRelics);
   return {
     date,
     seasonId: seasonIdFor(date),
@@ -335,8 +338,11 @@ function combineAll(state: BuildState): void {
       for (const [id, count] of counts) {
         if (count > 1) refund += (count - 1) * relicRefund(id);
       }
+      const uniq = [...new Set(allRelics)];
+      // A merged rat still carries at most MAX_RELICS_PER_RAT; overflow is refunded.
+      for (const id of uniq.slice(MAX_RELICS_PER_RAT)) refund += relicRefund(id);
       state.scrap += refund;
-      first.u.relicIds = [...new Set(allRelics)];
+      first.u.relicIds = uniq.slice(0, MAX_RELICS_PER_RAT);
       // Remove the other two copies from whichever pool they occupy, higher
       // index first so splicing one doesn't shift the other's index.
       for (const rest of [second, third].sort((a, b) => b.idx - a.idx)) {
@@ -393,7 +399,7 @@ export function canRecruit(state: BuildState, slotIndex: number): boolean {
  * to at all), which would otherwise soft-lock the same way.
  */
 export function hasValidRelicTarget(state: BuildState, relicId: string): boolean {
-  return state.board.some((u) => !u.relicIds.includes(relicId));
+  return state.board.some((u) => !u.relicIds.includes(relicId) && u.relicIds.length < MAX_RELICS_PER_RAT);
 }
 
 export function buyRelic(state: BuildState, slotIndex: number, targetIndex?: number): ActionResult {
@@ -409,6 +415,9 @@ export function buyRelic(state: BuildState, slotIndex: number, targetIndex?: num
   // are rejected outright rather than sold as traps.
   if (relic.scope === 'unit' && state.board[targetIndex!].relicIds.includes(relic.id)) {
     return fail('that rat already carries one');
+  }
+  if (relic.scope === 'unit' && state.board[targetIndex!].relicIds.length >= MAX_RELICS_PER_RAT) {
+    return fail('that rat is carrying all it can');
   }
   if (relic.scope === 'team' && state.teamRelicIds.includes(relic.id)) {
     return fail('the horde already carries one');
@@ -473,7 +482,7 @@ export function rerollShop(state: BuildState): ActionResult {
   const s = clone(state);
   s.scrap -= REROLL_COST;
   s.shop.rolls += 1;
-  const fresh = rollOfferings(s.date, s.shop.rolls, s.teamRelicIds, s.day);
+  const fresh = rollOfferings(s.date, s.shop.rolls, s.teamRelicIds);
   s.shop.slots = s.shop.slots.map((old, i) =>
     s.shop.frozen[i] && old.kind !== 'empty' ? old : fresh[i]
   );
@@ -495,7 +504,7 @@ export function autoRerollShop(state: BuildState): ActionResult {
   if (!isShopDead(state)) return { ok: false, reason: 'shop is not dead' };
   const s = clone(state);
   s.shop.rolls += 1;
-  const fresh = rollOfferings(s.date, s.shop.rolls, s.teamRelicIds, s.day);
+  const fresh = rollOfferings(s.date, s.shop.rolls, s.teamRelicIds);
   s.shop.slots = s.shop.slots.map((old, i) =>
     s.shop.frozen[i] && old.kind !== 'empty' ? old : fresh[i]
   );

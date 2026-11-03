@@ -66,28 +66,28 @@ describe('unit abilities', () => {
   });
 
   it('t2 Bone-Priest revives the first fallen ally at 10 health', () => {
-    // Warren-Warden at tier 2 has maxHealth 6*3=18, comfortably above the
+    // MD Rattyfock at tier 2 has maxHealth 6*3=18, comfortably above the
     // t2 revive value of 10, so the result isn't accidentally cap-limited.
     const { events } = simulate(
-      lineup({ defId: 'warren-warden', tier: 2 }, { defId: 'bone-priest', tier: 2 }),
+      lineup({ defId: 'md-rattyfock', tier: 2 }, { defId: 'bone-priest', tier: 2 }),
       gauntletOf([dummy(50, 500)])
     );
     const revives = ofType(events, 'revive');
     expect(revives.length).toBe(1);
-    expect(revives[0].unit.defId).toBe('warren-warden');
+    expect(revives[0].unit.defId).toBe('md-rattyfock');
     expect(revives[0].unit.health).toBe(10);
   });
 
   it('t3 Bone-Priest revives the first fallen ally at 20 health', () => {
-    // Warren-Warden at tier 3 has maxHealth 6*9=54, comfortably above the
+    // MD Rattyfock at tier 3 has maxHealth 6*9=54, comfortably above the
     // t3 revive value of 20, so the result isn't accidentally cap-limited.
     const { events } = simulate(
-      lineup({ defId: 'warren-warden', tier: 3 }, { defId: 'bone-priest', tier: 3 }),
+      lineup({ defId: 'md-rattyfock', tier: 3 }, { defId: 'bone-priest', tier: 3 }),
       gauntletOf([dummy(50, 500)])
     );
     const revives = ofType(events, 'revive');
     expect(revives.length).toBe(1);
-    expect(revives[0].unit.defId).toBe('warren-warden');
+    expect(revives[0].unit.defId).toBe('md-rattyfock');
     expect(revives[0].unit.health).toBe(20);
   });
 
@@ -119,9 +119,9 @@ describe('unit abilities', () => {
     expect(result.survivors.length).toBe(0);
   });
 
-  it('Warren-Warden buffs every rat behind it at start of battle', () => {
+  it('MD Rattyfock buffs every rat behind it at start of battle', () => {
     const { events } = simulate(
-      lineup({ defId: 'warren-warden' }, { defId: 'gutter-runt' }, { defId: 'dire-rat' }),
+      lineup({ defId: 'md-rattyfock' }, { defId: 'gutter-runt' }, { defId: 'dire-rat' }),
       gauntletOf([dummy(0, 1)])
     );
     const clashIdx = events.findIndex((e) => e.type === 'clash');
@@ -364,58 +364,37 @@ describe('relics', () => {
 
 });
 
-describe('time-of-day abilities (issue #12: Dawn-Runt/Dusk-Runt)', () => {
-  it('Dawn-Runt grants +2 attack to the whole horde before noon', () => {
-    const { events } = simulate(
-      { units: [{ defId: 'dawn-runt' }, { defId: 'gutter-runt' }], timeOfDay: 'beforeNoon' },
-      gauntletOf([dummy(0, 100)])
-    );
-    const buffs = ofType(events, 'buff');
-    // Whole team, including the caster itself — unlike buffBehind.
-    expect(buffs.length).toBe(2);
-    expect(buffs.every((b) => b.attack === 2 && b.health === 0)).toBe(true);
+describe('Dawn-Runt / Dusk-Runt (no time-of-day gate)', () => {
+  it('Dawn-Runt grants +1 attack to the whole horde at any time of day', () => {
+    for (const timeOfDay of ['beforeNoon', 'afterNoon', undefined] as const) {
+      const { events } = simulate(
+        { units: [{ defId: 'dawn-runt' }, { defId: 'gutter-runt' }], timeOfDay },
+        gauntletOf([dummy(0, 100)])
+      );
+      const buffs = ofType(events, 'buff');
+      expect(buffs.length).toBe(2);
+      expect(buffs.every((b) => b.attack === 1 && b.health === 0)).toBe(true);
+    }
   });
 
-  it('Dawn-Runt does not fire after noon', () => {
-    const { events } = simulate(
-      { units: [{ defId: 'dawn-runt' }, { defId: 'gutter-runt' }], timeOfDay: 'afterNoon' },
-      gauntletOf([dummy(0, 100)])
-    );
-    expect(ofType(events, 'buff')).toHaveLength(0);
-  });
-
-  it('Dusk-Runt grants +2 health to the whole horde after noon', () => {
-    const { events } = simulate(
-      { units: [{ defId: 'dusk-runt' }, { defId: 'gutter-runt' }], timeOfDay: 'afterNoon' },
-      gauntletOf([dummy(0, 100)])
-    );
-    const buffs = ofType(events, 'buff');
-    expect(buffs.length).toBe(2);
-    expect(buffs.every((b) => b.attack === 0 && b.health === 2)).toBe(true);
-  });
-
-  it('Dusk-Runt does not fire before noon', () => {
-    const { events } = simulate(
-      { units: [{ defId: 'dusk-runt' }, { defId: 'gutter-runt' }], timeOfDay: 'beforeNoon' },
-      gauntletOf([dummy(0, 100)])
-    );
-    expect(ofType(events, 'buff')).toHaveLength(0);
-  });
-
-  it('a lineup with no timeOfDay set fires neither Dawn-Runt nor Dusk-Runt (pre-#12 lineups are unaffected)', () => {
-    const { events } = simulate(
-      { units: [{ defId: 'dawn-runt' }, { defId: 'dusk-runt' }] },
-      gauntletOf([dummy(0, 100)])
-    );
-    expect(ofType(events, 'buff')).toHaveLength(0);
+  it('Dusk-Runt grants +2 health to the whole horde at any time of day', () => {
+    for (const timeOfDay of ['beforeNoon', 'afterNoon', undefined] as const) {
+      const { events } = simulate(
+        { units: [{ defId: 'dusk-runt' }, { defId: 'gutter-runt' }], timeOfDay },
+        gauntletOf([dummy(0, 100)])
+      );
+      const buffs = ofType(events, 'buff');
+      expect(buffs.length).toBe(2);
+      expect(buffs.every((b) => b.attack === 0 && b.health === 2)).toBe(true);
+    }
   });
 
   it('fires once per battle, not once per wave (compounding-law check)', () => {
     const { events } = simulate(
-      { units: [{ defId: 'dawn-runt' }, { defId: 'gutter-runt' }], timeOfDay: 'beforeNoon' },
+      { units: [{ defId: 'dawn-runt' }, { defId: 'gutter-runt' }] },
       gauntletOf([dummy(0, 1)], [dummy(0, 1)], [dummy(0, 1)])
     );
-    expect(ofType(events, 'buff')).toHaveLength(2); // once per horde unit, not once per wave
+    expect(ofType(events, 'buff')).toHaveLength(2);
   });
 });
 
@@ -470,11 +449,11 @@ describe('revive cannot loop', () => {
 describe('startOfBattle fires once per unit, startOfWave every wave', () => {
   const grinder = (n: number) => gauntletOf(...Array.from({ length: n }, () => [dummy(0, 1)]));
 
-  it('Warren-Warden buffs the horde once, not once per wave', () => {
+  it('MD Rattyfock buffs the horde once, not once per wave', () => {
     // The compounding bug: 4 tier-3 Wardens re-buffing every wave carried a
     // 6-attack rat to 241 and full-cleared the 45-wave gauntlet.
     const { events } = simulate(
-      lineup({ defId: 'warren-warden' }, { defId: 'gutter-runt' }),
+      lineup({ defId: 'md-rattyfock' }, { defId: 'gutter-runt' }),
       grinder(10)
     );
     expect(ofType(events, 'buff')).toHaveLength(1);

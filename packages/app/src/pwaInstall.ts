@@ -1,5 +1,5 @@
 /**
- * Install-prompt capture for PWA Phase 2 (PWA-SCOPE.md). Framework-agnostic,
+ * Install-prompt capture for PWA Phase 2 (the PWA notes). Framework-agnostic,
  * same style as updateCheck.ts: small functions, no throws, callers decide
  * the UI. ROADMAP.md's retention-loop notes want the install nudge surfaced
  * after the player's first good ride, not shown cold on page load — the

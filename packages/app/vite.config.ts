@@ -5,14 +5,14 @@ import { VitePWA } from 'vite-plugin-pwa';
 // Mirrors env.ts's CHANNEL logic (that file resolves it at runtime via
 // import.meta.env; here we need the same value at *build* time to
 // channel-namespace the service-worker cache, matching persistence.ts's
-// `NS = 'wrad' | 'wrad-dev'` scheme so a dev SW can never collide with or
-// evict a prod precache entry on the shared origin — see PWA-SCOPE.md's
+// `NS = 'wrad2' | 'wrad2-dev'` scheme so a dev SW can never collide with or
+// evict a prod precache entry on the shared origin — see the PWA notes's
 // "two-channel / base-path gotchas".
 const CHANNEL = process.env.VITE_CHANNEL === 'prod' ? 'prod' : 'dev';
 
 export default defineConfig({
   // Relative asset paths so the build works under any GitHub Pages
-  // subpath (e.g. /we-ride-at-dawn/) without hardcoding the repo name.
+  // subpath (e.g. /we-ride-at-dawn-2/) without hardcoding the repo name.
   base: './',
   plugins: [
     svelte(),
@@ -27,9 +27,9 @@ export default defineConfig({
       // instead of the plugin's own auto-injected prompt UI.
       injectRegister: null,
       manifest: {
-        name: 'We Ride at Dawn',
-        short_name: 'WRAD',
-        description: 'An idle auto-battler horde-builder. Ride at dawn.',
+        name: 'We Ride at Dawn 2',
+        short_name: 'WRAD 2',
+        description: 'Build a rat board. Duel every night. Most league points by Sunday wins.',
         // Relative start_url/scope so the identical manifest works
         // unmodified at both deploy paths (prod at /, dev at /dev/) —
         // same reasoning as `base: './'` above.
@@ -51,19 +51,19 @@ export default defineConfig({
       },
       workbox: {
         // Channel-scoped cache names (see CHANNEL comment above).
-        cacheId: `wrad-${CHANNEL}`,
+        cacheId: `wrad2-${CHANNEL}`,
         cleanupOutdatedCaches: true,
         // Precached, content-hashed assets are safely cache-first by
         // construction (a new deploy = new hashed filenames = new precache
         // entries). Navigation requests fall back to the precached
         // index.html only once the new SW has actually activated — the
         // `registerType: 'prompt'` flow above means a stale index.html is
-        // never served cache-first indefinitely; see PWA-SCOPE.md's "key
+        // never served cache-first indefinitely; see the PWA notes's "key
         // risk" note.
         navigateFallback: './index.html',
       },
       // Icons/manifest only — Supabase calls are never precached (the app
-      // already tolerates offline there; see PWA-SCOPE.md Phase 2 "Offline").
+      // already tolerates offline there; see the PWA notes Phase 2 "Offline").
       includeAssets: ['icons/*.png'],
     }),
   ],

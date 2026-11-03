@@ -36,12 +36,17 @@ import {
   BENCH_SIZE,
   unitStats,
   rollOfferings,
+  scrapForDepth,
+  recordDepth,
+  MILESTONES,
+  INCOME_CAP,
+  INCOME_CAP_DEPTH,
   type BuildState,
 } from '../src/shop';
 import { UNIT_DEFS } from '../src/data/units';
 import { RELIC_DEFS } from '../src/data/relics';
 import { simulate } from '../src/sim';
-import { generateGauntlet, difficultyForDay } from '../src/gauntlet';
+import { generateGauntlet, difficultyForDay, WAVE_COUNT } from '../src/gauntlet';
 import { BOARD_CAP } from '../src/sim';
 
 const unitSlot = (s: BuildState): number => s.shop.slots.findIndex((x) => x.kind === 'unit');
@@ -1418,5 +1423,42 @@ describe('relic limit per rat', () => {
   it('validateBoard rejects 4 relics on one rat', () => {
     const r = validateBoard({ units: [{ defId: 'gnawer', relicIds: ['rusted-nail', 'glass-shard', 'fat-tick', 'tail-charm'] }] });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('raid income and milestones', () => {
+  it('scrapForDepth is monotone, reaches INCOME_CAP at INCOME_CAP_DEPTH and is flat after', () => {
+    let prev = 0;
+    for (let d = 0; d <= 25; d++) {
+      const v = scrapForDepth(d);
+      expect(v).toBeGreaterThanOrEqual(prev);
+      prev = v;
+    }
+    expect(scrapForDepth(0)).toBe(0);
+    expect(scrapForDepth(INCOME_CAP_DEPTH)).toBe(INCOME_CAP);
+    expect(scrapForDepth(INCOME_CAP_DEPTH + 4)).toBe(INCOME_CAP);
+    expect(scrapForDepth(WAVE_COUNT)).toBe(INCOME_CAP);
+  });
+
+  it('pays each milestone once per season and flags a full clear', () => {
+    const b0 = newBuild('2026-07-06');
+    const r1 = recordDepth(b0, 12);
+    expect(r1.paid).toBe(MILESTONES[0].scrap);
+    expect(r1.state.bestDepth).toBe(12);
+    expect(r1.state.cleared).toBe(false);
+    expect(recordDepth(r1.state, 12).paid).toBe(0);
+    const r2 = recordDepth(r1.state, WAVE_COUNT);
+    expect(r2.paid).toBe(MILESTONES[1].scrap + MILESTONES[2].scrap);
+    expect(r2.state.cleared).toBe(true);
+    expect(recordDepth(r2.state, WAVE_COUNT).paid).toBe(0);
+    // survives the dawn, resets with a new season
+    expect(advanceAfterDawn(r2.state, '2026-07-07').milestonesPaid).toEqual(r2.state.milestonesPaid);
+    expect(advanceAfterDawn({ ...r2.state, day: 7 }, '2026-07-13').milestonesPaid).toEqual([]);
+  });
+
+  it('a legacy saved build without the new fields is handled', () => {
+    const { bestDepth, cleared, milestonesPaid, ...legacy } = newBuild('2026-07-06');
+    const r = recordDepth(legacy as never, 10);
+    expect(r.paid).toBe(MILESTONES[0].scrap);
   });
 });

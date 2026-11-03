@@ -30,6 +30,7 @@
     seasonIdFor,
     interestFor,
     scrapForDepth,
+    recordDepth,
     SEASON_DAYS,
     buyUnit,
     canRecruit,
@@ -528,6 +529,7 @@
         }
         seasonKills += rides.reduce((sum, r) => sum + r.enemiesDefeated, 0);
         saveSeasonKills(build.seasonId, seasonKills);
+        build = recordDepth(build, deepest.depth).state;
       }
       if (earned > 0) {
         build = { ...build, scrap: build.scrap + earned };
@@ -655,7 +657,7 @@
     }
     seasonKills += rides.reduce((sum, r) => sum + r.enemiesDefeated, 0);
     saveSeasonKills(build.seasonId, seasonKills);
-    build = { ...build, scrap: build.scrap + earned };
+    build = recordDepth({ ...build, scrap: build.scrap + earned }, deepest.depth).state;
     awaySummary = { rides: rides.length, scrap: earned };
     saveBuild(build);
   }

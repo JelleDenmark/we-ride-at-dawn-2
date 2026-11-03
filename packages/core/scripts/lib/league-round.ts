@@ -45,6 +45,9 @@ export function buildEntrants(rows: BoardRow[]): { entrants: LeagueEntrant[]; dr
     if (v.ok && r.board.units.length > 0) entrants.push({ id: r.player_id, board: r.board });
     else dropped.push(`${r.name}: ${v.ok ? 'empty board' : v.reason}`);
   }
+  // Seat order = player_id ascending. The app's replay seats pairs the same
+  // way, so a replayed duel is byte-identical to the scored one.
+  entrants.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return { entrants, dropped };
 }
 
@@ -143,8 +146,8 @@ export function makeDb(f: Fetch, key: string, base = SUPABASE_URL) {
       get<BoardRow[]>(`league_boards?season=eq.${enc(season)}&select=player_id,name,board,cleared_at&order=player_id`),
     round: async (id: string) =>
       (await get<{ closed_at: string | null }[]>(`league_rounds?round_id=eq.${enc(id)}&select=closed_at`))[0],
-    lastClosedAt: async () =>
-      (await get<{ closed_at: string }[]>('league_rounds?closed_at=not.is.null&select=closed_at&order=closed_at.desc&limit=1'))[0]
+    lastClosedAt: async (season: string) =>
+      (await get<{ closed_at: string }[]>(`league_rounds?season=eq.${enc(season)}&closed_at=not.is.null&select=closed_at&order=closed_at.desc&limit=1`))[0]
         ?.closed_at ?? null,
     seasonResults: (season: string) => get<ResultRow[]>(`league_results?season=eq.${enc(season)}&select=*`),
     writeResults: (rows: ResultRow[]) => upsert('league_results', rows, 'round_id,player_id'),
@@ -154,7 +157,7 @@ export function makeDb(f: Fetch, key: string, base = SUPABASE_URL) {
 
 /* ---------- The round ---------- */
 
-export interface RoundOpts { season: string; rideDate: string; dry: boolean; now?: Date }
+export interface RoundOpts { season: string; rideDate: string; dry: boolean; now?: Date; /** false for the dev season: score it, post nothing. */ notify?: boolean }
 
 export async function runRound(f: Fetch, key: string, o: RoundOpts) {
   const db = makeDb(f, key);
@@ -176,13 +179,14 @@ export async function runRound(f: Fetch, key: string, o: RoundOpts) {
   console.table(results.map((r) => ({ rank: r.rank, name: r.name, pts: r.points, W: r.wins, D: r.draws, L: r.losses, hp: r.health_diff })));
   if (o.dry) { console.log('Dry run, nothing written.'); return { status: 'dry' as const, results }; }
 
-  const prevClosed = await db.lastClosedAt();
+  const prevClosed = await db.lastClosedAt(o.season);
   const now = o.now ?? new Date();
   if (results.length) await db.writeResults(results);
   await db.writeRound({
     round_id: roundId, season: o.season, ride_date: o.rideDate, night_seed: o.rideDate, closed_at: now.toISOString(),
   });
 
+  if (o.notify === false) return { status: 'closed' as const, results };
   await discordPost(f, standingsMessage(o.rideDate, results));
   if (isSunday(o.rideDate)) {
     const totals = seasonTotals(await db.seasonResults(o.season));

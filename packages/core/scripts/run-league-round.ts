@@ -17,4 +17,7 @@ if (!key) {
   process.exit(1);
 }
 const rideDate = currentRideDate();
-await runRound(fetch, key, { season: seasonIdFor(rideDate), rideDate, dry });
+const season = seasonIdFor(rideDate);
+await runRound(fetch, key, { season, rideDate, dry });
+// Dev builds play a parallel `dev-` season (see packages/app/src/league.ts).
+await runRound(fetch, key, { season: `dev-${season}`, rideDate, dry, notify: false });

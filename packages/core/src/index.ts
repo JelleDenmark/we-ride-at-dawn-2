@@ -86,3 +86,14 @@ export {
   type BattleResult,
   type UnitView,
 } from './sim';
+
+export { simulateDuel, type DuelResult } from './duel';
+export {
+  scoreRound,
+  applyNightVariation,
+  validateBoard,
+  WIN_POINTS,
+  DRAW_POINTS,
+  type LeagueEntrant,
+  type RoundStanding,
+} from './league';

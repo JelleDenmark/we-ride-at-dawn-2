@@ -244,6 +244,8 @@ export interface LineupUnit {
   defId: string;
   tier?: number;
   relicIds?: string[];
+  /** Flat attack shift applied before the fight (the nightly -1/0/+1 seed variation). */
+  attackMod?: number;
 }
 
 export interface Lineup {

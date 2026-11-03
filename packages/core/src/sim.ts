@@ -124,26 +124,34 @@ export const MIN_ATTACK_DAMAGE = 1;
  */
 export function simulate(
   lineup: Lineup,
-  gauntlet: Gauntlet
-): { events: BattleEvent[]; result: BattleResult } {
+  gauntlet: Gauntlet,
+  duel?: Lineup
+): { events: BattleEvent[]; result: BattleResult; enemySurvivors: UnitView[] } {
   const events: BattleEvent[] = [];
   let nextInstanceId = 1;
 
-  const teamRelics = (lineup.teamRelicIds ?? [])
-    .map((id) => RELIC_DEFS[id])
-    .filter((r): r is RelicDef => r !== undefined && r.scope === 'team');
-  const teamAttack = teamRelics.reduce((s, r) => s + (r.attack ?? 0), 0);
-  const teamHealth = teamRelics.reduce((s, r) => s + (r.health ?? 0), 0);
-  // Whole-horde per-tick regen (The Forgotten Backpack). Same shape as a
-  // unit's healPerTick (Fat Tick), just summed across team relics and applied
-  // to every horde unit instead of only the carrier. Compounding-law check:
-  // this is bounded exactly like Fat Tick's regen below — every tick it's
-  // clamped to `maxHealth - health`, so it can never push a unit past its own
-  // health ceiling no matter how many of the 45 waves it runs across.
-  const teamHealPerTick = teamRelics.reduce((s, r) => s + (r.healPerTick ?? 0), 0);
-  // Both sides share one in-combat ceiling. Absent (golden logs, tests,
-  // gauntlet-only callers) it's BOARD_CAP, exactly as before.
-  const combatCap = lineup.combatCap ?? BOARD_CAP;
+  // Team relics resolve PER SIDE so a duel gives each board its own pool.
+  const teamPool = (ids: string[] | undefined) => {
+    const relics = (ids ?? [])
+      .map((id) => RELIC_DEFS[id])
+      .filter((r): r is RelicDef => r !== undefined && r.scope === 'team');
+    return {
+      attack: relics.reduce((s, r) => s + (r.attack ?? 0), 0),
+      health: relics.reduce((s, r) => s + (r.health ?? 0), 0),
+      // Whole-board regen (The Forgotten Backpack), split evenly across the
+      // side's units each tick and clamped to each unit's max health.
+      heal: relics.reduce((s, r) => s + (r.healPerTick ?? 0), 0),
+    };
+  };
+  const team: Record<Side, ReturnType<typeof teamPool>> = {
+    horde: teamPool(lineup.teamRelicIds),
+    gauntlet: teamPool(duel ? duel.teamRelicIds : []),
+  };
+  // Each side has its own in-combat ceiling (absent = BOARD_CAP).
+  const combatCaps: Record<Side, number> = {
+    horde: lineup.combatCap ?? BOARD_CAP,
+    gauntlet: duel ? (duel.combatCap ?? BOARD_CAP) : (lineup.combatCap ?? BOARD_CAP),
+  };
   // Real-world half-day this ride belongs to (issue #12: Dawn-Runt/Dusk-Runt).
   // Never read from the clock here — the app layer resolves it and passes it
   // in via Lineup.timeOfDay. Omitted = matches neither ability condition, so
@@ -156,7 +164,8 @@ export function simulate(
     relicIds: string[] = [],
     tier = 1,
     attackScale = 1,
-    healthScale = 1
+    healthScale = 1,
+    attackMod = 0
   ): BattleUnit => {
     const relics = relicIds
       .map((id) => RELIC_DEFS[id])
@@ -167,10 +176,9 @@ export function simulate(
     let health =
       Math.round(def.health * tierHealthMultiplier(tier) * healthScale) +
       relics.reduce((s, r) => s + (r.health ?? 0), 0);
-    if (side === 'horde') {
-      attack += teamAttack;
-      health += teamHealth;
-    }
+    attack = Math.max(0, attack + attackMod);
+    attack += team[side].attack;
+    health += team[side].health;
     return {
       instanceId: nextInstanceId++,
       defId: def.id,
@@ -203,7 +211,7 @@ export function simulate(
 
   const horde: BattleUnit[] = lineup.units
     .slice(0, BOARD_CAP)
-    .map((u) => instantiate(UNIT_DEFS[u.defId], 'horde', u.relicIds, u.tier ?? 1));
+    .map((u) => instantiate(UNIT_DEFS[u.defId], 'horde', u.relicIds, u.tier ?? 1, 1, 1, u.attackMod ?? 0));
   let enemies: BattleUnit[] = [];
   const fallen: Record<Side, BattleUnit[]> = { horde: [], gauntlet: [] };
 
@@ -280,7 +288,7 @@ export function simulate(
       case 'summon': {
         const def = DEF_LOOKUP[effect.unitId];
         for (let i = 0; i < effect.count * tier; i++) {
-          if (board.length >= combatCap) break;
+          if (board.length >= combatCaps[source.side]) break;
           const summoned = instantiate(def, source.side);
           board.splice(index, 0, summoned);
           events.push({ type: 'summon', side: source.side, index, unit: view(summoned) });
@@ -396,7 +404,7 @@ export function simulate(
         // regardless of how steep the HP table gets or how long the battle
         // (up to 45 waves) runs.
         const corpseIdx = fallen[source.side].findIndex((c) => c !== source && !c.raised);
-        if (corpseIdx === -1 || board.length >= combatCap) break;
+        if (corpseIdx === -1 || board.length >= combatCaps[source.side]) break;
         const [corpse] = fallen[source.side].splice(corpseIdx, 1);
         corpse.raised = true;
         corpse.health = Math.min(reviveHpForTier(tier), corpse.maxHealth);
@@ -423,7 +431,51 @@ export function simulate(
     }
   };
 
+  /**
+   * Duel death resolution: seat-symmetric. Neither side's faint triggers run
+   * until BOTH sides' dead are off the board, then faint-relic splash lands
+   * from both sides at once, and only then do the own-board faint abilities
+   * (summons, buffs) and allyFaint listeners fire. A seat therefore never
+   * gets to summon into, or splash around, a board the other seat has not yet
+   * had its turn on. Repeats until nothing is dead.
+   */
+  const resolveDeathsSimultaneous = (): void => {
+    for (;;) {
+      const batch: Array<{ unit: BattleUnit; index: number; board: BattleUnit[] }> = [];
+      for (const board of [horde, enemies]) {
+        for (let i = 0; i < board.length; ) {
+          if (board[i].health <= 0) {
+            const [unit] = board.splice(i, 1);
+            batch.push({ unit, index: i, board });
+            events.push({ type: 'death', unitId: unit.instanceId });
+            fallen[unit.side].push(unit);
+          } else i++;
+        }
+      }
+      if (batch.length === 0) return;
+      for (const { unit } of batch) {
+        for (const relic of unit.relics) {
+          if (!relic.onFaintDamageAll) continue;
+          events.push({ type: 'relicProc', targetId: unit.instanceId, relicId: relic.id, name: relic.name });
+          for (const foe of [...opposing(unit.side)]) applyDamage(foe, relic.onFaintDamageAll, 'attack');
+        }
+      }
+      // Back to front within a board, so an earlier index stays valid after a
+      // later corpse has summoned behind it.
+      for (let k = batch.length - 1; k >= 0; k--) {
+        const { unit, index } = batch[k];
+        if (unit.ability?.trigger === 'faint') applyEffect(unit, index, true);
+      }
+      for (const { board } of batch) {
+        for (const ally of [...board]) {
+          if (ally.ability?.trigger === 'allyFaint' && ally.health > 0) applyEffect(ally, board.indexOf(ally), false);
+        }
+      }
+    }
+  };
+
   const resolveDeaths = (): void => {
+    if (duel) return resolveDeathsSimultaneous();
     for (;;) {
       let dead: BattleUnit | undefined;
       let deadIndex = -1;
@@ -458,10 +510,15 @@ export function simulate(
    * `startOfWave` for every unit, `startOfBattle` only for units that have
    * never fired it. See `Ability` in data/units.ts for why the split exists.
    */
-  const fireEntryTriggers = (board: BattleUnit[]): void => {
+  const TARGETS_ENEMY = new Set(['poisonFrontEnemy', 'poisonTarget', 'poisonAllEnemies']);
+  const fireEntryTriggers = (board: BattleUnit[], phase?: 'own' | 'foe'): void => {
     for (const unit of [...board]) {
       const trigger = unit.ability?.trigger;
       if (trigger !== 'startOfBattle' && trigger !== 'startOfWave') continue;
+      // Duel only: own-board effects (summons, buffs) land on BOTH sides
+      // before either side's poison, so seat order cannot change what a
+      // poison hits (see the duel branch of the wave loop).
+      if (phase && TARGETS_ENEMY.has(unit.ability!.effect.kind) !== (phase === 'foe')) continue;
       if (trigger === 'startOfBattle') {
         if (unit.startOfBattleFired) continue;
         unit.startOfBattleFired = true;
@@ -503,10 +560,17 @@ export function simulate(
    */
   let blockCharges: Record<Side, number> = { horde: 0, gauntlet: 0 };
 
-  for (let w = 0; w < gauntlet.waves.length && horde.length > 0; w++) {
-    enemies = gauntlet.waves[w].units.map((d) =>
-      instantiate(d, 'gauntlet', [], 1, enemyAttackScale(w), enemyHealthScale(w))
-    );
+  const waveCount = duel ? 1 : gauntlet.waves.length;
+  for (let w = 0; w < waveCount && horde.length > 0; w++) {
+    // A duel is ONE wave: the opponent's real board at full tiers and relics,
+    // no wave scaling. PvE waves are unchanged.
+    enemies = duel
+      ? duel.units
+          .slice(0, BOARD_CAP)
+          .map((u) => instantiate(UNIT_DEFS[u.defId], 'gauntlet', u.relicIds, u.tier ?? 1, 1, 1, u.attackMod ?? 0))
+      : gauntlet.waves[w].units.map((d) =>
+          instantiate(d, 'gauntlet', [], 1, enemyAttackScale(w), enemyHealthScale(w))
+        );
     events.push({ type: 'waveStart', wave: w + 1, enemies: enemies.map(view) });
     damageThisWave = 0;
     // First-hit relics (Glass Shard) fire anew each wave — clear the horde's
@@ -518,22 +582,23 @@ export function simulate(
     // below re-populates it via any `blockFrontHits` watchers present.
     blockCharges = { horde: 0, gauntlet: 0 };
 
-    fireEntryTriggers(horde);
-    fireEntryTriggers(enemies);
+    if (duel) {
+      fireEntryTriggers(horde, 'own');
+      fireEntryTriggers(enemies, 'own');
+      fireEntryTriggers(horde, 'foe');
+      fireEntryTriggers(enemies, 'foe');
+    } else {
+      fireEntryTriggers(horde);
+      fireEntryTriggers(enemies);
+    }
     resolveDeaths();
 
     let ticks = 0;
     while (horde.length > 0 && enemies.length > 0 && ticks++ < MAX_TICKS_PER_WAVE) {
-      // Distribute team heal pool across all horde units to cap unbounded scaling
-      // with board size (issue #75: Forgotten Backpack). Instead of each unit
-      // getting full teamHealPerTick, divide it evenly: total team heal per tick
-      // = teamHealPerTick (e.g., 1), split among all horde units.
-      const teamHealPerUnit = horde.length > 0 ? teamHealPerTick / horde.length : 0;
       for (const board of [horde, enemies]) {
         for (const unit of board) {
           const unitHeal = unit.relics.reduce((s, r) => s + (r.healPerTick ?? 0), 0);
-          const totalRegen =
-            unitHeal + (unit.side === 'horde' ? teamHealPerUnit : 0);
+          const totalRegen = unitHeal + team[unit.side].heal / board.length;
           const amount = Math.min(totalRegen, unit.maxHealth - unit.health);
           if (amount > 0) {
             unit.health += amount;
@@ -566,6 +631,7 @@ export function simulate(
       // Captured for Marrow-Snap's crossing check below: the execute must
       // compare against the foe's health as it stood BEFORE this clash hit.
       const foeHealthBeforeClash = foe.health;
+      const frontHealthBeforeClash = front.health;
       if (blockCharges[foe.side] > 0) {
         blockCharges[foe.side]--;
         events.push({ type: 'shieldAbsorbed', targetId: foe.instanceId });
@@ -580,49 +646,33 @@ export function simulate(
       }
       damageThisWave += damageOut;
 
-      // Marrow-Snap: if THIS clash hit drove the foe from above the execute
-      // line to at or below it (executeThreshold of the foe's OWN max
-      // health), the foe dies outright instead of surviving on a sliver.
-      // CROSSING semantics, not a stateless health check (changed for the
-      // season launch, Jesper 2026-07-11): the old "any foe currently at or
-      // below the line dies to the next clash" let Blight-Witch's wave-start
-      // AoE poison pre-soften the whole wave under the line, turning every
-      // front tap into a kill — with a Marrow-Snap rotating on the front
-      // rat, enemies effectively fought with a third of their health bar.
-      // Now the executing blow itself must do the threshold-crossing work;
-      // a foe already under the line (poison chip, earlier clashes) can NOT
-      // be tap-executed — poison steals the crossing rather than enabling
-      // it. Still pure execute, no stat gain anywhere, foe-relative, so the
-      // compounding law holds exactly as before (see `executeThreshold` in
-      // data/relics.ts). Only fires if the foe actually survived this clash
-      // (a kill is a kill, not an execute) and skips a foe a surviveLethal
-      // relic just rescued to 1 health.
-      const executeRelic = front.relics.find((r) => r.executeThreshold !== undefined);
-      const executeCutoff = executeRelic ? foe.maxHealth * executeRelic.executeThreshold! : 0;
-      if (executeRelic && foe.health > 0 && foeHealthBeforeClash > executeCutoff && foe.health <= executeCutoff) {
-        events.push({ type: 'relicProc', targetId: front.instanceId, relicId: executeRelic.id, name: executeRelic.name });
-        // Finish the foe directly rather than routing through applyDamage:
-        // this is a kill-condition check, not a fresh attack, so it must not
-        // be blunted by the foe's own armor (damageReduction) the way a
-        // normal hit would be.
-        const finishing = foe.health;
-        foe.health = 0;
-        events.push({ type: 'damage', targetId: foe.instanceId, amount: finishing, remainingHealth: 0 });
+      // Marrow-Snap (execute) and Gore-Cleaver (overkill carry), for BOTH
+      // fronts so a duel is seat-symmetric. Marrow-Snap needs the executing
+      // blow itself to cross the line (see `executeThreshold` in
+      // data/relics.ts); Gore-Cleaver carries what actually spilled past the
+      // kill to the next unit in line, once.
+      const finishers: Array<[BattleUnit, BattleUnit, BattleUnit[], number]> = [
+        [front, foe, enemies, foeHealthBeforeClash],
+        [foe, front, horde, frontHealthBeforeClash],
+      ];
+      for (const [attacker, victim, victimBoard, victimBefore] of finishers) {
+        const executeRelic = attacker.relics.find((r) => r.executeThreshold !== undefined);
+        const cutoff = executeRelic ? victim.maxHealth * executeRelic.executeThreshold! : 0;
+        if (executeRelic && victim.health > 0 && victimBefore > cutoff && victim.health <= cutoff) {
+          events.push({ type: 'relicProc', targetId: attacker.instanceId, relicId: executeRelic.id, name: executeRelic.name });
+          const finishing = victim.health;
+          victim.health = 0;
+          events.push({ type: 'damage', targetId: victim.instanceId, amount: finishing, remainingHealth: 0 });
+        }
       }
-
-      // Gore-Cleaver: overkill damage that actually fells the front foe
-      // carries to the next enemy in line, once, no chaining. Guard against
-      // Tail-Charm (or any future surviveLethal) actually saving the foe —
-      // check post-applyDamage health, not just the raw overkill math.
-      if (front.relics.some((r) => r.cleaveOverkill) && foe.health <= 0) {
-        // Carry what actually spilled past the kill, i.e. how far the foe's
-        // health went negative — not the raw swing, which armor may have
-        // blunted before it landed.
-        const overkill = -foe.health;
-        const next = enemies[1];
-        if (overkill > 0 && next) {
-          events.push({ type: 'relicProc', targetId: front.instanceId, relicId: 'gore-cleaver', name: 'Gore-Cleaver' });
-          applyDamage(next, overkill, 'attack');
+      for (const [attacker, victim, victimBoard] of finishers) {
+        if (attacker.relics.some((r) => r.cleaveOverkill) && victim.health <= 0) {
+          const overkill = -victim.health;
+          const next = victimBoard[1];
+          if (overkill > 0 && next) {
+            events.push({ type: 'relicProc', targetId: attacker.instanceId, relicId: 'gore-cleaver', name: 'Gore-Cleaver' });
+            applyDamage(next, overkill, 'attack');
+          }
         }
       }
 
@@ -663,5 +713,6 @@ export function simulate(
       damageDealt: totalDamage,
       enemiesDefeated: fallen.gauntlet.length,
     },
+    enemySurvivors: enemies.map(view),
   };
 }

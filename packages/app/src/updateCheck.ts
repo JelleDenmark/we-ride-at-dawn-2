@@ -1,6 +1,6 @@
 /**
  * Stale-tab detector: an open tab keeps running the JS it loaded with
- * forever and never learns a new build shipped (see PWA-SCOPE.md Phase 1 —
+ * forever and never learns a new build shipped (see the PWA notes Phase 1 —
  * this is what player "CarryRotte" hit right after the 0.6.0 ship). Since
  * every real deploy content-hashes the entry bundle (e.g.
  * `assets/index-RbDxdpOe.js`), a changed filename is a reliable, zero-config
@@ -8,7 +8,7 @@
  * a relative fetch (`./index.html`), so prod and dev each check their own
  * path with no configuration.
  *
- * No service worker, no manifest, no build changes — see PWA-SCOPE.md
+ * No service worker, no manifest, no build changes — see the PWA notes
  * Phase 1. This module is deliberately small and framework-agnostic; the
  * Svelte component wires it to a local `$state` via `onUpdateAvailable`.
  */

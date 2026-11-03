@@ -17,4 +17,4 @@ uncapped) to 0% at tiers 1, 2 and 3.
 - Bone-Priest is on 0% of boards with the cap. Brood-Mother ~0-5%. May need a small buff.
 - MD Rattyfock + Warren-Warden (same mechanics) are on 90-100% of evolved boards. Dropping Warren-Warden is already in the design; check Rattyfock alone afterwards.
 - Roster still to do: skins (Moe for Blight-Witch, Rattyfock for Warren-Warden), Dawn-Runt +1 attack, buff Rat-Piper and Plague-Bearer.
-- Not started: economy (20 waves, 12 scrap cap), app UI for standings and tonight's duel.
+- Not started: economy (20 waves, 12 scrap cap), (app UI for standings, tonight's duel, open boards and duel replay is now built, against the league_* contract).

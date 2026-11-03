@@ -1,5 +1,5 @@
 /**
- * PWA Phase 2 (PWA-SCOPE.md) service-worker registration, wired into the
+ * PWA Phase 2 (the PWA notes) service-worker registration, wired into the
  * Phase 1 "fresh build rode in" banner (updateCheck.ts / App.svelte) instead
  * of introducing a second, competing update UI.
  *

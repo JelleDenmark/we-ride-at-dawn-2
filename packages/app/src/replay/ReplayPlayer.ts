@@ -109,6 +109,7 @@ export class ReplayPlayer {
   private stats = new Map<number, { attack: number; health: number }>();
   private order: Record<Side, number[]> = { horde: [], gauntlet: [] };
   private banner?: Text;
+  private duel?: { horde: string; gauntlet: string; end: string };
   /** Index of the current event within the events array passed to play(). */
   private currentIndex = 0;
   /** Index of the last waveStart event, or -1 if there is none. */
@@ -121,6 +122,11 @@ export class ReplayPlayer {
     await this.app.init({ width: W, height: H, background: 0x120f0c, antialias: true });
     el.appendChild(this.app.canvas);
     await ReplayPlayer.loadArt();
+  }
+
+  destroy(): void {
+    this.speed = 1e9;
+    this.app.destroy(true, { children: true });
   }
 
   // Rasterize every unit SVG to a texture up front so play() never awaits a
@@ -139,8 +145,18 @@ export class ReplayPlayer {
     ).then(() => undefined);
   }
 
-  async play(events: BattleEvent[]): Promise<void> {
+  /** `duel` switches the labels to a board-vs-board fight: side names under
+   * the boards, no wave banners, and `end` as the closing line. */
+  async play(
+    events: BattleEvent[],
+    duel?: { horde: string; gauntlet: string; end: string }
+  ): Promise<void> {
     this.reset();
+    this.duel = duel;
+    if (duel) {
+      this.sideLabel(duel.horde, W / 4, 0xc98a63);
+      this.sideLabel(duel.gauntlet, (3 * W) / 4, 0x8aa4c4);
+    }
     this.lastWaveStartIndex = -1;
     for (let i = 0; i < events.length; i++) {
       if (events[i].type === 'waveStart') this.lastWaveStartIndex = i;
@@ -184,7 +200,7 @@ export class ReplayPlayer {
       }
       case 'waveStart': {
         for (const unit of event.enemies) this.spawn(unit, this.order.gauntlet.length, W + 80);
-        this.showBanner(`WAVE ${event.wave}`);
+        this.showBanner(this.duel ? 'THE DUEL' : `WAVE ${event.wave}`);
         await this.layout(this.d(320));
         await wait(this.d(300));
         break;
@@ -280,11 +296,17 @@ export class ReplayPlayer {
         break;
       }
       case 'waveClear': {
+        if (this.duel) break;
         this.showBanner(`WAVE ${event.wave} CLEARED — deeper into the city`);
         await wait(this.d(650));
         break;
       }
       case 'battleEnd': {
+        if (this.duel) {
+          this.showBanner(this.duel.end, true);
+          await wait(this.d(400));
+          break;
+        }
         this.showBanner(
           `THE RIDE ENDS — DEPTH ${event.wavesCleared} · SCORE ${event.score}`,
           true
@@ -327,6 +349,17 @@ export class ReplayPlayer {
       if (sprite) moves.push(tween(sprite.root, { x: W / 2 + FRONT_GAP + i * gauntletSpacing, y: GROUND_Y }, ms));
     });
     return Promise.all(moves);
+  }
+
+  private sideLabel(text: string, x: number, color: number): void {
+    const label = new Text({
+      text: text.length > 22 ? `${text.slice(0, 21)}…` : text,
+      style: { fill: color, fontSize: 18, fontWeight: 'bold', letterSpacing: 1, fontFamily: 'Georgia' },
+    });
+    label.anchor.set(0.5);
+    label.x = x;
+    label.y = GROUND_Y + 80;
+    this.app.stage.addChild(label);
   }
 
   private showBanner(text: string, persistent = false): void {

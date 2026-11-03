@@ -3,7 +3,7 @@ import { CHANNEL } from './env';
 
 // Channel-namespaced so dev experiments never clobber prod state on the
 // same origin.
-const NS = CHANNEL === 'prod' ? 'wrad' : 'wrad-dev';
+const NS = CHANNEL === 'prod' ? 'wrad2' : 'wrad2-dev';
 
 /** Builds saved before the bench feature shipped have no `bench` field —
  * default it to empty so upgrading players don't hit `undefined.length`.
@@ -81,7 +81,7 @@ export function loadLastIncomeHour(): number | null {
  * channel-namespaced: a player is the same warlord on prod and dev. */
 export function savePlayerName(name: string): void {
   try {
-    localStorage.setItem('wrad:name', name);
+    localStorage.setItem('wrad2:name', name);
   } catch {
     // Non-fatal — falls back to a fresh themed default next load.
   }
@@ -89,7 +89,7 @@ export function savePlayerName(name: string): void {
 
 export function loadPlayerName(): string | null {
   try {
-    return localStorage.getItem('wrad:name');
+    return localStorage.getItem('wrad2:name');
   } catch {
     return null;
   }
@@ -170,7 +170,7 @@ export function loadRideLog(): RideLogEntry[] {
   }
 }
 
-/** Whether the player has dismissed the PWA install nudge (PWA-SCOPE.md
+/** Whether the player has dismissed the PWA install nudge (the PWA notes
  * Phase 2) — shown once after the first good ride (`seasonBest > 0`),
  * suppressed permanently once dismissed or once installed. Channel-
  * namespaced like everything else here, even though installing is a

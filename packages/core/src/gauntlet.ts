@@ -24,9 +24,8 @@ export interface Gauntlet {
   waves: EnemyWave[];
 }
 
-// Depth is the leaderboard's core metric, so the ceiling needs enough
-// headroom that even a maxed-out horde is chasing depth, not capping out.
-export const WAVE_COUNT = 45;
+// 20 waves: clearing all of them is the season's badge (no points).
+export const WAVE_COUNT = 20;
 export const WAVE_BUDGET_BASE = 3;
 export const WAVE_BUDGET_GROWTH = 2;
 /** Super-linear term: budget grows by i^2 * this, so late waves outpace
@@ -100,7 +99,7 @@ export function generateGauntlet(date: string, day = 1, hour?: number): Gauntlet
 
   // The base (hourless) gauntlet rolls its waves from a season-seeded
   // stream, independent of (but derived the same way as) the theme stream
-  // above — so the whole 45-wave gauntlet is now identical for every day of
+  // above — so the whole gauntlet is now identical for every day of
   // one expedition, not just the theme.
   const rng =
     hour === undefined

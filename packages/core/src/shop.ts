@@ -3,8 +3,9 @@ import { xorshift128 } from './prng';
 import { UNIT_DEFS, type Lineup, type UnitDef, tierAttackMultiplier, tierHealthMultiplier } from './data/units';
 import { RELIC_DEFS } from './data/relics';
 import { BOARD_CAP, COMBAT_CAP_BONUS } from './sim';
+import { WAVE_COUNT } from './gauntlet';
 
-export const DAILY_SCRAP = 24;
+export const DAILY_SCRAP = 40;
 export const REROLL_COST = 2;
 export const SHOP_UNIT_SLOTS = 4;
 export const SHOP_RELIC_SLOTS = 2;
@@ -15,45 +16,49 @@ export const SEASON_DAYS = 7;
  * counter-tech, not a second board. */
 export const BENCH_SIZE = 3;
 
-// Idle economy: the horde skirmishes hourly, earning scrap per wave cleared.
-// Interest (TFT-style, 5% of the bank, capped) is paid once per DAY at dawn,
-// not per hour — the daily cadence + cap keep the bank from snowballing over
-// the hundreds of hours in an expedition.
-export const SCRAP_PER_DEPTH = 1;
+// Idle economy: the horde raids the gauntlet every hour for scrap. Interest
+// (5% of the bank, capped) is paid once per DAY at dawn.
 export const INTEREST_RATE = 0.05;
 export const INTEREST_CAP = 5;
 
-// Income decoupling (issue #90). Income used to be a flat `depth *
-// SCRAP_PER_DEPTH` — every extra wave cleared paid the same, so ANY change
-// that let players push deeper (roster acceleration #91, enemy softening #92)
-// inflated the bank in lockstep, snowballing the economy #70 just tuned. So
-// income is now DIMINISHING in depth: the first `SCRAP_FULL_DEPTH` waves pay
-// full rate, and every wave beyond pays the reduced `SCRAP_DEEP_RATE`. This
-// keeps the LEADERBOARD chase from snowballing the bank (a depth-30 run is
-// still mostly paid at the 0.4 deep rate) while leaving score itself raw,
-// undiminished depth — depth is the prestige metric.
-//
-// full=8 is a DELIBERATE mild surplus, not income-neutral: with #91's deeper
-// median it lands week income ~1140 (~+12% over the pre-#90 ~1020 baseline,
-// see snowball §5/§7). The neutral value was 7; Jesper chose 8 (2026-07-11) so
-// a merge-fishing player has scrap to actually chase a T3 unit — a rewarding
-// payoff — rather than banking an unspendable surplus against a too-tight
-// economy. Income is NOT the real T3 gate (fishing RNG is), so this is a small
-// generosity lever to validate with live feedback next season, not a fix.
-export const SCRAP_FULL_DEPTH = 8;
-export const SCRAP_DEEP_RATE = 0.4;
+/** Raid income tops out at this many scrap, reached at INCOME_CAP_DEPTH. */
+export const INCOME_CAP = 12;
+export const INCOME_CAP_DEPTH = 16;
+
+/** Below 1 the curve is steeper at shallow depth, so weak boards earn too. */
+export const INCOME_CURVE = 0.6;
+
+/** Scrap for clearing `depth` waves in one raid: rises to INCOME_CAP at
+ * INCOME_CAP_DEPTH, flat after. Integer, monotone. */
+export function scrapForDepth(depth: number): number {
+  const t = Math.min(Math.max(depth, 0), INCOME_CAP_DEPTH) / INCOME_CAP_DEPTH;
+  return Math.round(INCOME_CAP * Math.pow(t, INCOME_CURVE));
+}
+
+/** One-off scrap the first time a season's best depth reaches each wave. */
+export const MILESTONES: readonly { depth: number; scrap: number }[] = [
+  { depth: 10, scrap: 40 },
+  { depth: 15, scrap: 60 },
+  { depth: 20, scrap: 80 },
+];
 
 /**
- * Scrap earned for clearing `depth` waves in one ride — the single source of
- * truth for idle income (issue #90), so app, balance scripts, and any future
- * server re-sim agree. Diminishing past `SCRAP_FULL_DEPTH`; floored to keep
- * the economy integer (scrap is spent in whole units everywhere). NOTE: this
- * is INCOME only — leaderboard score / max-depth is still raw `depth`.
+ * Record a raid's depth on the build: tracks the season's best depth, flags a
+ * full clear (depth >= WAVE_COUNT, badge only, no points) and pays each
+ * milestone once per season. Returns the new build and the scrap paid.
  */
-export function scrapForDepth(depth: number): number {
-  const full = Math.min(depth, SCRAP_FULL_DEPTH);
-  const deep = Math.max(0, depth - SCRAP_FULL_DEPTH);
-  return Math.floor(full * SCRAP_PER_DEPTH + deep * SCRAP_DEEP_RATE);
+export function recordDepth(build: BuildState, depth: number): { state: BuildState; paid: number } {
+  const done = build.milestonesPaid ?? [];
+  const owed = MILESTONES.filter((m) => depth >= m.depth && !done.includes(m.depth));
+  const paid = owed.reduce((sum, m) => sum + m.scrap, 0);
+  const state: BuildState = {
+    ...build,
+    scrap: build.scrap + paid,
+    bestDepth: Math.max(build.bestDepth ?? 0, depth),
+    cleared: (build.cleared ?? false) || depth >= WAVE_COUNT,
+    milestonesPaid: [...done, ...owed.map((m) => m.depth)],
+  };
+  return { state, paid };
 }
 
 export function interestFor(scrap: number): number {
@@ -183,6 +188,12 @@ export interface BuildState {
    * `boardCapForDay` (see `SLOT_PRICES`/`buyBoardSlot`). 0..SLOT_PRICES.length,
    * carried across days by `advanceAfterDawn`, reset by `newBuild`. */
   purchasedSlots: number;
+  /** Season best raid depth (0 = none yet). */
+  bestDepth: number;
+  /** True once a raid cleared every wave this season (badge only). */
+  cleared: boolean;
+  /** Milestone depths already paid this season (see MILESTONES). */
+  milestonesPaid: number[];
   shop: {
     slots: ShopSlot[];
     frozen: boolean[];
@@ -256,6 +267,9 @@ export function newBuild(date: string, day = 1, ownedTeamRelics: readonly string
     bench: [],
     teamRelicIds: [],
     purchasedSlots: 0,
+    bestDepth: 0,
+    cleared: false,
+    milestonesPaid: [],
     shop: { slots, frozen: slots.map(() => false), rolls: 0 },
   };
 }
@@ -275,6 +289,9 @@ export function advanceAfterDawn(build: BuildState, nextDate: string): BuildStat
   // the roster/relics they were bought to support — reset by newBuild only
   // when the season itself ends (the `build.day >= SEASON_DAYS` branch above).
   next.purchasedSlots = build.purchasedSlots ?? 0;
+  next.bestDepth = build.bestDepth ?? 0;
+  next.cleared = build.cleared ?? false;
+  next.milestonesPaid = [...(build.milestonesPaid ?? [])];
   // Scrap is accumulated idle income — it carries across days, not reset.
   next.scrap = build.scrap;
   return next;

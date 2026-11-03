@@ -7,7 +7,7 @@
  *
  * Run: npx tsx scripts/maxed-board-guardrail.ts   (from packages/core)
  */
-import { generateGauntlet } from '../src/gauntlet';
+import { generateGauntlet, WAVE_COUNT } from '../src/gauntlet';
 import {
   simulate,
   BOARD_CAP,
@@ -52,7 +52,7 @@ function board(order: string[]): Lineup {
 console.log(
   `enemy HP scale: perWave=${ENEMY_HEALTH_SCALE_PER_WAVE} quad=${ENEMY_HEALTH_SCALE_QUADRATIC}  (day ${DAY}, ${SAMPLES} dates, all t3, best relics + filth-totem)\n`
 );
-console.log('comp             avg     p95   MAX / 45   maxHeadroom');
+console.log(`comp             avg     p95   MAX / ${WAVE_COUNT}   maxHeadroom`);
 for (const [name, order] of Object.entries(COMPS)) {
   const lineup = board(order);
   const depths: number[] = [];
@@ -65,6 +65,6 @@ for (const [name, order] of Object.entries(COMPS)) {
   const p95 = depths[Math.floor(depths.length * 0.95)];
   const max = depths[depths.length - 1];
   console.log(
-    `${name.padEnd(15)} ${avg.toFixed(2).padStart(6)}  ${String(p95).padStart(4)}  ${String(max).padStart(5)}       ${String(45 - max).padStart(3)}`
+    `${name.padEnd(15)} ${avg.toFixed(2).padStart(6)}  ${String(p95).padStart(4)}  ${String(max).padStart(5)}       ${String(WAVE_COUNT - max).padStart(3)}`
   );
 }

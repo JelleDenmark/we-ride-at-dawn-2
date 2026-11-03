@@ -108,6 +108,8 @@ interface BattleUnit {
   startOfBattleFired: boolean;
   /** A corpse may be raised once per battle. Guards the two-reviver loop. */
   raised: boolean;
+  /** How many times this unit has grown from gainStats (for the growth cap). */
+  gains: number;
 }
 
 /** A hit reduced by armor still lands for at least this much. */
@@ -196,6 +198,7 @@ export function simulate(
       damageReduction: (def.damageReduction ?? 0) * tier,
       startOfBattleFired: false,
       raised: false,
+      gains: 0,
     };
   };
 
@@ -365,6 +368,8 @@ export function simulate(
         break;
       }
       case 'gainStats': {
+        if (effect.maxGains !== undefined && source.gains >= effect.maxGains) break;
+        source.gains++;
         buff(source, effect.attack * tier, effect.health * tier);
         break;
       }

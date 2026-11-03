@@ -51,3 +51,18 @@ describe('nightly round', () => {
     for (const r of table) expect(r.points).toBe(r.wins * 3 + r.draws);
   });
 });
+
+describe('Corpse-Glutton growth cap', () => {
+  it('stops growing after 4 allies fall', async () => {
+    const { UNIT_DEFS } = await import('../src/data/units');
+    const fx = UNIT_DEFS['corpse-glutton'].ability!.effect;
+    expect(fx.kind === 'gainStats' && fx.maxGains).toBe(4);
+    // Glutton behind six gutter-runts against a heavy board: runts fall, Glutton
+    // grows, but never past its base stats + 4 gains.
+    const a = { units: [...Array(6).fill({ defId: 'gutter-runt' }), { defId: 'corpse-glutton' }], combatCap: 9 };
+    const b = { units: [{ defId: 'dire-rat', tier: 3 }], combatCap: 3 };
+    const { events } = simulateDuel(a, b);
+    const buffs = events.filter((e) => e.type === 'buff');
+    expect(buffs.length).toBeLessThanOrEqual(4);
+  });
+});

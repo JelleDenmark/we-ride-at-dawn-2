@@ -137,7 +137,8 @@ export type Effect =
    * a persistent-horde compounding vector like the shipped exploits.
    */
   | { kind: 'poisonAllEnemies' }
-  | { kind: 'gainStats'; attack: number; health: number }
+  /** `maxGains`: how many times this unit may grow in one battle (absent = unlimited). */
+  | { kind: 'gainStats'; attack: number; health: number; maxGains?: number }
   /**
    * HP is NOT carried on the effect — it's looked up per-tier via
    * `reviveHpForTier` at apply time (issue #53), then capped at the
@@ -307,8 +308,8 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
   },
   'corpse-glutton': {
     id: 'corpse-glutton', name: 'Corpse-Glutton', attack: 3, health: 2, cost: 6,
-    desc: '+1/+1 when an ally faints',
-    ability: { trigger: 'allyFaint', effect: { kind: 'gainStats', attack: 1, health: 1 } },
+    desc: '+1/+1 when an ally faints, up to 4 times a battle',
+    ability: { trigger: 'allyFaint', effect: { kind: 'gainStats', attack: 1, health: 1, maxGains: 4 } },
   },
   'bone-priest': {
     id: 'bone-priest', name: 'Bone-Priest', attack: 1, health: 4, cost: 6,

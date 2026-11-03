@@ -1,3 +1,4 @@
+import './lib/legacy-stats';
 import { describe, expect, it } from 'vitest';
 import { simulate, type BattleEvent } from '../src/sim';
 import type { Gauntlet } from '../src/gauntlet';
@@ -65,9 +66,9 @@ describe('unit abilities', () => {
     expect(revives[0].unit.health).toBe(1);
   });
 
-  it('t2 Bone-Priest revives the first fallen ally at 10 health', () => {
+  it('t2 Bone-Priest revives the first fallen ally at 2 health', () => {
     // MD Rattyfock at tier 2 has maxHealth 6*3=18, comfortably above the
-    // t2 revive value of 10, so the result isn't accidentally cap-limited.
+    // t2 revive value of 2, so the result isn't accidentally cap-limited.
     const { events } = simulate(
       lineup({ defId: 'md-rattyfock', tier: 2 }, { defId: 'bone-priest', tier: 2 }),
       gauntletOf([dummy(50, 500)])
@@ -75,12 +76,12 @@ describe('unit abilities', () => {
     const revives = ofType(events, 'revive');
     expect(revives.length).toBe(1);
     expect(revives[0].unit.defId).toBe('md-rattyfock');
-    expect(revives[0].unit.health).toBe(10);
+    expect(revives[0].unit.health).toBe(2);
   });
 
-  it('t3 Bone-Priest revives the first fallen ally at 20 health', () => {
+  it('t3 Bone-Priest revives the first fallen ally at 3 health', () => {
     // MD Rattyfock at tier 3 has maxHealth 6*9=54, comfortably above the
-    // t3 revive value of 20, so the result isn't accidentally cap-limited.
+    // t3 revive value of 3, so the result isn't accidentally cap-limited.
     const { events } = simulate(
       lineup({ defId: 'md-rattyfock', tier: 3 }, { defId: 'bone-priest', tier: 3 }),
       gauntletOf([dummy(50, 500)])
@@ -88,11 +89,11 @@ describe('unit abilities', () => {
     const revives = ofType(events, 'revive');
     expect(revives.length).toBe(1);
     expect(revives[0].unit.defId).toBe('md-rattyfock');
-    expect(revives[0].unit.health).toBe(20);
+    expect(revives[0].unit.health).toBe(3);
   });
 
   it('t3 Bone-Priest revive is capped at the corpse\'s own maxHealth', () => {
-    // Gutter-Runt is a 1-health t1 corpse; the 1/10/20 table must not
+    // Gutter-Runt is a 1-health t1 corpse; the 1/2/3 table must not
     // overheal it past its own ceiling just because the reviver is t3.
     // The dummy needs enough health to survive long enough for the tier-3
     // Bone-Priest (attack 9, health 36) to actually die and trigger revive.

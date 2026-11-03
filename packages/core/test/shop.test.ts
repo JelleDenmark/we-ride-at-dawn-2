@@ -1,3 +1,4 @@
+import './lib/legacy-stats';
 import { describe, expect, it } from 'vitest';
 import { validateBoard } from '../src/league';
 import {

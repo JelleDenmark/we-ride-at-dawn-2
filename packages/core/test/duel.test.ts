@@ -1,3 +1,4 @@
+import './lib/legacy-stats';
 import { describe, it, expect } from 'vitest';
 import { simulateDuel } from '../src/duel';
 import { scoreRound, applyNightVariation } from '../src/league';

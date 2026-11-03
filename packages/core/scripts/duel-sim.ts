@@ -17,6 +17,7 @@
  */
 import { UNIT_DEFS, type Lineup } from '../src/data/units';
 import { simulateDuel } from '../src/duel';
+import { applyNightVariation } from '../src/league';
 import { xorshift128, type Rng } from '../src/prng';
 
 const TIER = Number(process.env.TIER ?? 2);
@@ -29,6 +30,8 @@ if (process.env.CAP) {
   const fx = UNIT_DEFS['corpse-glutton'].ability!.effect;
   if (fx.kind === 'gainStats') fx.maxGains = Number(process.env.CAP);
 }
+// NIGHTS: each duel is averaged over this many night-variation seeds (-1/0/+1 attack per rat).
+const NIGHTS = Number(process.env.NIGHTS ?? 4);
 const TRIO = ['brood-mother', 'bone-priest', 'corpse-glutton'];
 
 const board = (ids: string[], tier = TIER): Lineup => ({
@@ -37,10 +40,15 @@ const board = (ids: string[], tier = TIER): Lineup => ({
 });
 const randomIds = (rng: Rng): string[] => Array.from({ length: SIZE }, () => IDS[rng.int(IDS.length)]);
 
-/** Score for `a` against `b`: 1 win, 0.5 draw, 0 loss. */
+/** Score for `a` against `b`: 1 win, 0.5 draw, 0 loss, averaged over NIGHTS night seeds. */
 const score = (a: string[], b: string[]): number => {
-  const w = simulateDuel(board(a), board(b)).result.winner;
-  return w === 'a' ? 1 : w === 'draw' ? 0.5 : 0;
+  let t = 0;
+  for (let n = 0; n < NIGHTS; n++) {
+    const seed = `n${n}`;
+    const w = simulateDuel(applyNightVariation(board(a), seed, 'a'), applyNightVariation(board(b), seed, 'b')).result.winner;
+    t += w === 'a' ? 1 : w === 'draw' ? 0.5 : 0;
+  }
+  return t / NIGHTS;
 };
 const pct = (x: number) => (x * 100).toFixed(1).padStart(5);
 
@@ -65,8 +73,9 @@ function swing(): void {
   for (const r of rows) console.log(`  ${r.id.padEnd(16)} ${r.d >= 0 ? '+' : ''}${r.d.toFixed(1)}`);
 }
 
-function evolve(): string[][] {
-  const rng = xorshift128(Number(process.env.SEED ?? 22));
+/** One independent hill-climb; returns its top third of boards. */
+function evolveOnce(seed: number): string[][] {
+  const rng = xorshift128(seed);
   const POP = Number(process.env.POP ?? 60);
   const GEN = Number(process.env.GEN ?? 40);
   let pop = Array.from({ length: POP }, () => randomIds(rng));
@@ -89,8 +98,16 @@ function evolve(): string[][] {
     pop = [...keep, ...kids];
   }
   const f = fitness(pop);
-  const top = pop.map((_, i) => i).sort((a, b) => f[b] - f[a]).slice(0, Math.ceil(POP / 3)).map((i) => pop[i]);
-  console.log(`\nEvolved boards (${POP} boards, ${GEN} generations), top ${top.length} by round-robin win rate`);
+  return pop.map((_, i) => i).sort((a, b) => f[b] - f[a]).slice(0, Math.ceil(POP / 3)).map((i) => pop[i]);
+}
+
+// SEEDS independent runs are pooled: one run's top boards are all kin, so a single
+// run overstates how often a unit shows up.
+function evolve(): string[][] {
+  const base = Number(process.env.SEED ?? 22);
+  const SEEDS = Number(process.env.SEEDS ?? 3);
+  const top = Array.from({ length: SEEDS }, (_, k) => evolveOnce(base + k * 101)).flat();
+  console.log(`\nEvolved boards (${SEEDS} runs from seed ${base}), top ${top.length} by round-robin win rate`);
   const freq = IDS.map((id) => ({ id, p: top.filter((b) => b.includes(id)).length / top.length }));
   for (const r of freq.sort((a, b) => b.p - a.p)) console.log(`  ${r.id.padEnd(16)} on ${pct(r.p)}% of boards`);
   const trio = top.filter((b) => TRIO.every((u) => b.includes(u))).length / top.length;
@@ -101,8 +118,8 @@ function evolve(): string[][] {
 }
 
 const STRATEGIES: Record<string, string[]> = {
-  swarm: ['gutter-runt', 'rat-piper', 'rat-piper', 'brood-mother', 'md-rattyfock', 'press-kin', 'gutter-runt'],
-  plague: ['plague-bearer', 'plague-bearer', 'draughtsman-moe', 'ward-weaver', 'plague-bearer', 'dire-rat', 'press-kin'],
+  swarm: ['rat-piper', 'rat-piper', 'brood-mother', 'brood-mother', 'press-kin', 'dawn-runt', 'dusk-runt'],
+  plague: ['plague-bearer', 'plague-bearer', 'draughtsman-moe', 'plague-bearer', 'ward-weaver', 'md-rattyfock', 'dusk-runt'],
   sacrifice: ['gnawer', 'gnawer', 'corpse-glutton', 'brood-mother', 'bone-priest', 'corpse-glutton', 'gnawer'],
   bruiser: ['dire-rat', 'dire-rat', 'ward-weaver', 'md-rattyfock', 'press-kin', 'dawn-runt', 'dusk-runt'],
 };

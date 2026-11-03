@@ -1,3 +1,4 @@
+import './lib/legacy-stats';
 import { describe, expect, it } from 'vitest';
 import { UNIT_DEFS } from '../src/data/units';
 import { newBuild, buyUnit } from '../src/shop';

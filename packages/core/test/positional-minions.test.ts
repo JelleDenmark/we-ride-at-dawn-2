@@ -1,3 +1,4 @@
+import './lib/legacy-stats';
 import { describe, expect, it } from 'vitest';
 import { simulate, type BattleEvent } from '../src/sim';
 import type { Gauntlet } from '../src/gauntlet';
@@ -92,9 +93,20 @@ describe('Ward-Weaver (blockFrontHits, issue #56)', () => {
     expect(events.indexOf(firstAbsorbToFront)).toBeLessThan(events.indexOf(firstDamageToFront!));
   });
 
-  it('t2 blocks exactly the first 2 hits of the wave, no more', () => {
+  it('t2 still blocks only the first hit of the wave (blocks are 1/1/2)', () => {
     const { events } = simulate(
       lineup({ defId: 'dire-rat' }, { defId: 'ward-weaver', tier: 2 }),
+      gauntletOf([dummy(1, 1000)])
+    );
+    const battleStart = events.find((e): e is Extract<BattleEvent, { type: 'battleStart' }> => e.type === 'battleStart')!;
+    const frontId = battleStart.horde[0].instanceId;
+    const absorbedForFront = ofType(events, 'shieldAbsorbed').filter((e) => e.targetId === frontId);
+    expect(absorbedForFront.length).toBe(1);
+  });
+
+  it('t3 blocks exactly the first 2 hits of the wave, no more', () => {
+    const { events } = simulate(
+      lineup({ defId: 'dire-rat' }, { defId: 'ward-weaver', tier: 3 }),
       gauntletOf([dummy(1, 1000)])
     );
     const battleStart = events.find((e): e is Extract<BattleEvent, { type: 'battleStart' }> => e.type === 'battleStart')!;
@@ -103,26 +115,15 @@ describe('Ward-Weaver (blockFrontHits, issue #56)', () => {
     expect(absorbedForFront.length).toBe(2);
   });
 
-  it('t3 blocks exactly the first 3 hits of the wave, no more', () => {
-    const { events } = simulate(
-      lineup({ defId: 'dire-rat' }, { defId: 'ward-weaver', tier: 3 }),
-      gauntletOf([dummy(1, 1000)])
-    );
-    const battleStart = events.find((e): e is Extract<BattleEvent, { type: 'battleStart' }> => e.type === 'battleStart')!;
-    const frontId = battleStart.horde[0].instanceId;
-    const absorbedForFront = ofType(events, 'shieldAbsorbed').filter((e) => e.targetId === frontId);
-    expect(absorbedForFront.length).toBe(3);
-  });
-
   it('charges reset every wave — they do not carry over or accumulate', () => {
     // 3 separate waves, each with a fresh 5hp enemy: dire-rat's attack (4)
     // kills it in exactly 2 ticks, so each wave clears cleanly after
-    // exactly 2 ticks — enough for a t2 Ward-Weaver's 2 charges to be fully
+    // exactly 2 ticks — enough for a t3 Ward-Weaver's 2 charges to be fully
     // spent (and no more) every single wave, with a fresh enemy re-arming
     // the test for the next wave. If charges carried over or accumulated,
     // some wave would show a count other than exactly 2.
     const { events } = simulate(
-      lineup({ defId: 'dire-rat' }, { defId: 'ward-weaver', tier: 2 }),
+      lineup({ defId: 'dire-rat' }, { defId: 'ward-weaver', tier: 3 }),
       gauntletOf([dummy(1, 5)], [dummy(1, 5)], [dummy(1, 5)])
     );
     const waveStarts = ofType(events, 'waveStart');
@@ -138,7 +139,7 @@ describe('Ward-Weaver (blockFrontHits, issue #56)', () => {
     }
   });
 
-  it('does NOT stack additively: two t3 Ward-Weavers together still only block 3 hits, not 6', () => {
+  it('does NOT stack additively: two t3 Ward-Weavers together still only block 2 hits, not 4', () => {
     const { events } = simulate(
       lineup({ defId: 'dire-rat' }, { defId: 'ward-weaver', tier: 3 }, { defId: 'ward-weaver', tier: 3 }),
       gauntletOf([dummy(1, 1000)])
@@ -146,10 +147,10 @@ describe('Ward-Weaver (blockFrontHits, issue #56)', () => {
     const battleStart = events.find((e): e is Extract<BattleEvent, { type: 'battleStart' }> => e.type === 'battleStart')!;
     const frontId = battleStart.horde[0].instanceId;
     const absorbedForFront = ofType(events, 'shieldAbsorbed').filter((e) => e.targetId === frontId);
-    expect(absorbedForFront.length).toBe(3);
+    expect(absorbedForFront.length).toBe(2);
   });
 
-  it('mixed tiers use MAX, not sum: one t1 + one t3 Ward-Weaver together still only block 3 hits', () => {
+  it('mixed tiers use MAX, not sum: one t1 + one t3 Ward-Weaver together still only block 2 hits', () => {
     const { events } = simulate(
       lineup({ defId: 'dire-rat' }, { defId: 'ward-weaver', tier: 1 }, { defId: 'ward-weaver', tier: 3 }),
       gauntletOf([dummy(1, 1000)])
@@ -157,7 +158,7 @@ describe('Ward-Weaver (blockFrontHits, issue #56)', () => {
     const battleStart = events.find((e): e is Extract<BattleEvent, { type: 'battleStart' }> => e.type === 'battleStart')!;
     const frontId = battleStart.horde[0].instanceId;
     const absorbedForFront = ofType(events, 'shieldAbsorbed').filter((e) => e.targetId === frontId);
-    expect(absorbedForFront.length).toBe(3);
+    expect(absorbedForFront.length).toBe(2);
   });
 
   it('protects whichever unit is currently front, not the Ward-Weaver itself', () => {
@@ -165,7 +166,7 @@ describe('Ward-Weaver (blockFrontHits, issue #56)', () => {
     // land on gutter-runt (index 0), never on the Ward-Weaver's own
     // instance — it watches the front, it doesn't shield itself.
     const { events } = simulate(
-      lineup({ defId: 'gutter-runt' }, { defId: 'ward-weaver', tier: 2 }),
+      lineup({ defId: 'gutter-runt' }, { defId: 'ward-weaver', tier: 3 }),
       gauntletOf([dummy(3, 1000)])
     );
     const battleStart = events.find((e): e is Extract<BattleEvent, { type: 'battleStart' }> => e.type === 'battleStart')!;

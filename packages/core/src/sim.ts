@@ -368,7 +368,7 @@ export function simulate(
         // `raised` flag makes resurrection a once-per-corpse resource, so any
         // reviver ring is finite no matter how many priests you stack.
         //
-        // Issue #53: revive HP now comes from `reviveHpForTier` (1/10/20)
+        // Issue #53: revive HP now comes from `reviveHpForTier` (1/2/3)
         // instead of a flat `health * tier`, capped at the revived corpse's
         // own `maxHealth` so a low-tier ally can't be overhealed past its
         // ceiling. This is a magnitude change only, not a frequency one —

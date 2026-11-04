@@ -29,7 +29,7 @@
     weekdayFor,
     seasonIdFor,
     interestFor,
-    scrapForDepth,
+    raidScrap,
     recordDepth,
     SEASON_DAYS,
     buyUnit,
@@ -56,7 +56,6 @@
     buyBoardSlot,
     tierAttackMultiplier,
     tierHealthMultiplier,
-    reviveHpForTier,
     poisonStacksForTier,
     type ActionResult,
     type BattleResult,
@@ -196,7 +195,7 @@
       : null
   );
   const currentDepth = $derived(currentOutcome ? currentOutcome.result.wavesCleared : 0);
-  const scrapPerHour = $derived(scrapForDepth(currentDepth));
+  const scrapPerHour = $derived(raidScrap(currentDepth, build.board));
   const secondsToNextHour = $derived(3600 - (Math.floor(nowTick / 1000) % 3600));
   // True only during the day-1 recruitment freeze (see isFrozenHour above) —
   // drives the idle-panel status line. The live ride preview below is
@@ -247,14 +246,14 @@
   // including exactly how much it scales per star. Numbers come from the same
   // core tables the sim uses (never hand-copied), so they can't drift.
 
-  /** "+2/+2 (★2 +6/+6 · ★3 +18/+18)" for the 3x-per-star buff curve. */
+  /** "+2/+2 (★2 +4/+4 · ★3 +6/+6)" — buffs are base x star. */
   function buffScale(attack: number, health: number): string {
     const at = (t: number) =>
       health > 0 && attack > 0
-        ? `+${attack * tierAttackMultiplier(t)}/+${health * tierHealthMultiplier(t)}`
+        ? `+${attack * t}/+${health * t}`
         : attack > 0
-          ? `+${attack * tierAttackMultiplier(t)} attack`
-          : `+${health * tierHealthMultiplier(t)} health`;
+          ? `+${attack * t} attack`
+          : `+${health * t} health`;
     return `${at(1)} (★2 ${at(2)} · ★3 ${at(3)})`;
   }
 
@@ -267,8 +266,11 @@
       armor > 0
         ? `Shrugs off ${armor} from every blow that lands (★2 ${armor * 2} · ★3 ${armor * 3}) — a hit always lands for at least 1, and rot (poison) seeps straight through.`
         : '';
+    const scavSentence = (def?.scavenge ?? 0) > 0
+      ? `Scavenges ${def!.scavenge} extra scrap every raid while on the board (★2 ${def!.scavenge! * 2} · ★3 ${def!.scavenge! * 3}).`
+      : '';
     if (!def?.ability) {
-      return armorSentence || 'No special trick — just a body to swell the ranks.';
+      return scavSentence || armorSentence || 'No special trick — just a body to swell the ranks.';
     }
     const e = def.ability.effect;
     if (e.kind === 'blockFrontHits') {
@@ -278,7 +280,7 @@
     switch (e.kind) {
       case 'summon': {
         const name = UNIT_DEFS[e.unitId]?.name ?? e.unitId;
-        what = `summons ${e.count} ${name}${e.count > 1 ? 's' : ''} (★2 ${e.count * 2} · ★3 ${e.count * 3}) in front`;
+        what = `summons ${e.count} ${name}${e.count > 1 ? 's' : ''} in front, at its own ★ (a ★2 summoner's pups are ★2 — the litter stays ${e.count})`;
         break;
       }
       case 'buffBehind':
@@ -294,13 +296,16 @@
         what = `gains ${buffScale(e.attack, e.health)}`;
         break;
       case 'revive':
-        what = `revives your first fallen rat at ${reviveHpForTier(1)} health (★2 ${reviveHpForTier(2)} · ★3 ${reviveHpForTier(3)}), never above the rat's own max; each fallen rat can only be raised once`;
+        what = `raises your first fallen rat at half health, hollow (it loses its ability); each fallen rat can only be raised once`;
         break;
       case 'buffAdjacent':
         what = `grants ${buffScale(e.attack, e.health)} to the rat(s) beside it — a middle seat buffs both neighbours`;
         break;
-      case 'teamBuff':
-        what = `grants ${buffScale(e.attack, e.health)} to the whole horde, itself included`;
+      case 'poisonStrongest':
+        what = `applies ${e.stacks * poisonStacksForTier(1)} poison (★2 ${e.stacks * poisonStacksForTier(2)} · ★3 ${e.stacks * poisonStacksForTier(3)}) to the hardest-hitting foe — poison bites for its full count every clash and clears when the wave falls`;
+        break;
+      case 'damageAllEnemies':
+        what = `bursts, hitting every foe for ${e.amount * tierAttackMultiplier(1)} (★2 ${e.amount * tierAttackMultiplier(2)} · ★3 ${e.amount * tierAttackMultiplier(3)}) — armor does not stop it`;
         break;
     }
     const abilityPart = `${TRIGGER_WHEN[def.ability.trigger]} it ${what}.`;
@@ -328,12 +333,12 @@
         case 'buffAdjacent':
         case 'gainStats':
           return '▲ buff';
-        case 'teamBuff': {
-          return '▲ buff';
-        }
         case 'poisonFrontEnemy':
         case 'poisonTarget':
+        case 'poisonStrongest':
           return '☠ poison';
+        case 'damageAllEnemies':
+          return '✸ burst';
         case 'revive':
           return '✚ revive';
         case 'blockFrontHits':
@@ -341,6 +346,7 @@
       }
     }
     if ((def.damageReduction ?? 0) > 0) return '⛨ armor';
+    if ((def.scavenge ?? 0) > 0) return `+${def.scavenge} scrap/raid`;
     return null;
   }
 
@@ -502,7 +508,7 @@
           if (isFrozenHour(h, build.seasonId)) continue;
           const timedLineup = { ...lineup, timeOfDay: timeOfDayAt(new Date(h * HOUR_MS)) };
           const { result } = simulate(timedLineup, generateGauntlet(build.date, build.day));
-          const scrap = scrapForDepth(result.wavesCleared);
+          const scrap = raidScrap(result.wavesCleared, build.board);
           earned += scrap;
           rides.push({
             hour: h,
@@ -633,7 +639,7 @@
       if (isFrozenHour(hourBucket, build.seasonId)) continue;
       const timedLineup = { ...lineup, timeOfDay: timeOfDayAt(new Date(hourBucket * HOUR_MS)) };
       const { result } = simulate(timedLineup, generateGauntlet(build.date, build.day));
-      const scrap = scrapForDepth(result.wavesCleared);
+      const scrap = raidScrap(result.wavesCleared, build.board);
       earned += scrap;
       rides.push({
         hour: hourBucket,

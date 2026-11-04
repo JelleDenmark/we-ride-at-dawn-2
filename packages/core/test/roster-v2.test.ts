@@ -194,9 +194,10 @@ describe('Gutter Runt scavenging', () => {
     expect(raidScrap(8)).toBe(scrapForDepth(8));
   });
 
-  it('adds scavenge x tier for every scavenger on the board', () => {
+  it('adds a flat scavenge, and only one scavenger counts', () => {
     const per = UNIT_DEFS['gutter-runt'].scavenge!;
+    expect(raidScrap(8, [{ defId: 'gutter-runt' }])).toBe(scrapForDepth(8) + per);
     const board = [{ defId: 'gutter-runt' }, { defId: 'gutter-runt', tier: 3 }, { defId: 'gnawer' }];
-    expect(raidScrap(8, board)).toBe(scrapForDepth(8) + per * 1 + per * 3);
+    expect(raidScrap(8, board)).toBe(scrapForDepth(8) + per);
   });
 });

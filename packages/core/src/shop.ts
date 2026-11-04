@@ -37,10 +37,12 @@ export function scrapForDepth(depth: number): number {
   return Math.round(INCOME_CAP * Math.pow(t, INCOME_CURVE));
 }
 
-/** Scrap for one raid: depth income plus every scavenger on the board (x tier). */
+/** Scrap for one raid: depth income plus the best scavenger on the board. Flat,
+ * and only one scavenger counts, so it is an early economy pick whose slot you
+ * want back later, not a scrap printer. */
 export function raidScrap(depth: number, board: readonly { defId: string; tier?: number }[] = []): number {
   let extra = 0;
-  for (const u of board) extra += (UNIT_DEFS[u.defId]?.scavenge ?? 0) * (u.tier ?? 1);
+  for (const u of board) extra = Math.max(extra, UNIT_DEFS[u.defId]?.scavenge ?? 0);
   return scrapForDepth(depth) + extra;
 }
 

@@ -196,7 +196,7 @@ export interface UnitDef {
    * small hits, near-useless against brutes.
    */
   damageReduction?: number;
-  /** Extra scrap per raid while this rat is on the board, x tier. The economy rat. */
+  /** Extra scrap per raid while this rat is on the board (flat; only the best one counts). */
   scavenge?: number;
 }
 
@@ -240,8 +240,8 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
   // its own deaths), Bruiser (big bodies and buffs). Gutter Runt is the economy rat.
   'gutter-runt': {
     id: 'gutter-runt', name: 'Gutter Runt', attack: 2, health: 2, cost: 2,
-    desc: 'scavenger: +1 scrap every raid while on the board (scales ★)',
-    scavenge: 1,
+    desc: 'scavenger: +3 scrap every raid while on the board (one scavenger counts)',
+    scavenge: 3,
   },
   'rat-piper': {
     id: 'rat-piper', name: 'Rat-Piper', attack: 1, health: 3, cost: 4,

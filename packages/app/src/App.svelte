@@ -267,7 +267,7 @@
         ? `Shrugs off ${armor} from every blow that lands (★2 ${armor * 2} · ★3 ${armor * 3}) — a hit always lands for at least 1, and rot (poison) seeps straight through.`
         : '';
     const scavSentence = (def?.scavenge ?? 0) > 0
-      ? `Scavenges ${def!.scavenge} extra scrap every raid while on the board (★2 ${def!.scavenge! * 2} · ★3 ${def!.scavenge! * 3}).`
+      ? `Scavenges ${def!.scavenge} extra scrap every raid while on the board. Only one scavenger counts.`
       : '';
     if (!def?.ability) {
       return scavSentence || armorSentence || 'No special trick — just a body to swell the ranks.';
@@ -893,7 +893,7 @@
   class:update-banner-open={(updateAvailable && !updateDismissed) || showInstallNudge}
   style:padding-top={bannerCount > 1 ? '104px' : undefined}
 >
-  <h1>WE RIDE AT DAWN</h1>
+  <h1>WE RIDE AT DAWN 2</h1>
   <p class="sub">
     Week of {build.seasonId} · day {build.day}/{SEASON_DAYS} · raids hourly{CHANNEL === 'dev'
       ? ' · dev build'
@@ -1127,9 +1127,9 @@
         </div>
         <p class="idle-note">
           {#if inRecruitmentWindow}
-            "next haul" is a preview of your build, not banked yet — it won't be credited until 10:00 CET · scrap per depth cleared once rides start (deeper waves pay less) · gets tougher deeper
+            "next haul" is a preview of your build, not banked yet — it won't be credited until 10:00 CET · scrap by depth once rides start, up to 12 a raid · gets tougher deeper
           {:else}
-            scrap per depth cleared, every hour (deeper waves pay less) · +{interestFor(build.scrap)} interest banked each dawn · gets tougher deeper
+            scrap by depth every hour, up to 12 a raid (+3 with a scavenging Gutter Runt) · +{interestFor(build.scrap)} interest banked each dawn · gets tougher deeper
           {/if}
         </p>
         <button class="watch" onclick={watchRide}>▶ watch the next ride</button>

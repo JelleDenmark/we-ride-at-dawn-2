@@ -3,6 +3,8 @@ import { UNIT_DEFS, tierAttackMultiplier, tierHealthMultiplier, blockHitsForTier
 import { ENEMY_POOL } from './data/enemies';
 import { RELIC_DEFS, type RelicDef } from './data/relics';
 import type { Gauntlet } from './gauntlet';
+import { xorshift128, type Rng } from './prng';
+import { fnv1a } from './seed';
 
 const DEF_LOOKUP: Record<string, UnitDef> = {
   ...UNIT_DEFS,
@@ -24,9 +26,18 @@ export const BOARD_CAP = 8;
  */
 export const COMBAT_CAP_BONUS = 2;
 /** Tunable combat rules (the balance script may override them). */
-export const RULES = {
+export const RULES: {
+  reviveFraction: number;
+  /**
+   * 'queue': the two FRONT rats clash each tick, everyone behind waits.
+   * 'bg': Battlegrounds-style rounds, each side's attack pointer cycles over
+   * its living rats and picks a (random / taunt-constrained / sniped) target.
+   */
+  combat: 'queue' | 'bg';
+} = {
   /** Share of its max health a Bone-Priest raises a fallen ally at. */
   reviveFraction: 0.5,
+  combat: 'queue',
 };
 export const SCORE_PER_WAVE = 100;
 /** Stalemate guard (e.g. two healers out-sustaining each other): the wave is abandoned. */
@@ -115,6 +126,10 @@ interface BattleUnit {
   raised: boolean;
   /** How many times this unit has grown from gainStats (for the growth cap). */
   gains: number;
+  /** bg combat only; see UnitDef. */
+  taunt: boolean;
+  targeting: 'random' | 'weakest' | 'strongest';
+  cleave: boolean;
 }
 
 /** A hit reduced by armor still lands for at least this much. */
@@ -159,6 +174,25 @@ export function simulate(
     horde: lineup.combatCap ?? BOARD_CAP,
     gauntlet: duel ? (duel.combatCap ?? BOARD_CAP) : (lineup.combatCap ?? BOARD_CAP),
   };
+  // bg combat: one random stream PER SIDE, seeded from that side's own board
+  // and the shared seed, never one stream shared across seats. A side's draws
+  // therefore cannot depend on which seat it sits in or on what the other side
+  // did, which is what keeps a duel seat-fair and replayable.
+  const bg = RULES.combat === 'bg';
+  const pveSeed = `${gauntlet.date}#${gauntlet.hour ?? ''}`;
+  const sideRng = (units: Lineup['units'], seed: string): Rng => xorshift128(fnv1a(`${seed}|${JSON.stringify(units)}`));
+  const rngs: Record<Side, Rng> | undefined = bg
+    ? {
+        horde: sideRng(lineup.units, lineup.seed ?? (duel ? '' : pveSeed)),
+        gauntlet: duel ? sideRng(duel.units, duel.seed ?? '') : xorshift128(fnv1a(`${pveSeed}|gauntlet`)),
+      }
+    : undefined;
+  /** bg combat: index of the next rat to attack on each side. */
+  const cursor: Record<Side, number> = { horde: 0, gauntlet: 0 };
+  /** A rat entered (+1) or left (-1) `side`'s board at `index`: keep the pointer on the same next attacker. */
+  const shiftCursor = (side: Side, index: number, delta: 1 | -1): void => {
+    if (index < cursor[side]) cursor[side] += delta;
+  };
   const instantiate = (
     def: UnitDef,
     side: Side,
@@ -198,6 +232,9 @@ export function simulate(
       startOfBattleFired: false,
       raised: false,
       gains: 0,
+      taunt: def.taunt ?? false,
+      targeting: def.targeting ?? 'random',
+      cleave: def.cleave ?? false,
     };
   };
 
@@ -281,7 +318,7 @@ export function simulate(
    */
   // Ability magnitudes scale with the source's tier (a tier-2 Brood-Mother
   // births 4 pups, a tier-2 Gnawer grants +4 attack).
-  const applyEffect = (source: BattleUnit, index: number, removed: boolean): void => {
+  const applyEffect = (source: BattleUnit, index: number, removed: boolean, focus?: BattleUnit): void => {
     if (!source.ability) return;
     const board = boardOf(source.side);
     const effect = source.ability.effect;
@@ -294,6 +331,7 @@ export function simulate(
           if (board.length >= combatCaps[source.side]) break;
           const summoned = instantiate(def, source.side, [], tier);
           board.splice(index, 0, summoned);
+          shiftCursor(source.side, index, 1);
           events.push({ type: 'summon', side: source.side, index, unit: view(summoned) });
         }
         break;
@@ -321,7 +359,9 @@ export function simulate(
       }
       case 'poisonFrontEnemy': {
         // Stacks = effect.stacks x the tier table (Plague-Bearer 1x, Draughtsman Moe 2x).
-        const target = opposing(source.side)[0];
+        // bg combat: a random enemy (taunt does not shield from poison).
+        const foes = opposing(source.side);
+        const target = rngs ? foes[rngs[source.side].int(foes.length)] : foes[0];
         if (target) applyPoisonStacks(target, effect.stacks * poisonStacksForTier(tier));
         break;
       }
@@ -337,7 +377,8 @@ export function simulate(
         // the horde is cleared at `waveClear` same as the enemy side), but a
         // long single wave could still stack this unusually high within that
         // one wave given the per-tick trigger — not benchmarked.
-        const target = opposing(source.side)[0];
+        // bg combat: the rat this attacker just hit (`focus`).
+        const target = focus ?? opposing(source.side)[0];
         if (target && target.health > 0) applyPoisonStacks(target, effect.stacks * tier);
         break;
       }
@@ -392,6 +433,7 @@ export function simulate(
         corpse.health = Math.max(1, Math.ceil(corpse.maxHealth * RULES.reviveFraction));
         corpse.poison = 0;
         board.splice(index, 0, corpse);
+        shiftCursor(source.side, index, 1);
         events.push({ type: 'revive', side: source.side, index, unit: view(corpse) });
         break;
       }
@@ -428,6 +470,7 @@ export function simulate(
         for (let i = 0; i < board.length; ) {
           if (board[i].health <= 0) {
             const [unit] = board.splice(i, 1);
+            shiftCursor(unit.side, i, -1);
             batch.push({ unit, index: i, board });
             events.push({ type: 'death', unitId: unit.instanceId });
             fallen[unit.side].push(unit);
@@ -444,9 +487,17 @@ export function simulate(
       }
       // Back to front within a board, so an earlier index stays valid after a
       // later corpse has summoned behind it.
-      for (let k = batch.length - 1; k >= 0; k--) {
-        const { unit, index } = batch[k];
-        if (unit.ability?.trigger === 'faint') applyEffect(unit, index, true);
+      // bg combat: own-board faint effects (summons, revives, buffs) land on
+      // BOTH sides before any enemy-targeting one (Rot-Chemist's burst), so the
+      // burst of one seat cannot catch or miss a revive the other seat has not
+      // yet made. Mirrors the 'own' / 'foe' split of the entry triggers.
+      for (const foePhase of bg ? [false, true] : [undefined]) {
+        for (let k = batch.length - 1; k >= 0; k--) {
+          const { unit, index } = batch[k];
+          if (unit.ability?.trigger !== 'faint') continue;
+          if (foePhase !== undefined && TARGETS_ENEMY.has(unit.ability.effect.kind) !== foePhase) continue;
+          applyEffect(unit, index, true);
+        }
       }
       for (const { board } of batch) {
         for (const ally of [...board]) {
@@ -472,6 +523,7 @@ export function simulate(
       }
       if (!dead || !deadBoard) return;
       deadBoard.splice(deadIndex, 1);
+      shiftCursor(dead.side, deadIndex, -1);
       events.push({ type: 'death', unitId: dead.instanceId });
       fallen[dead.side].push(dead);
 
@@ -534,6 +586,136 @@ export function simulate(
    */
   let blockCharges: Record<Side, number> = { horde: 0, gauntlet: 0 };
 
+  // ---- bg combat (RULES.combat === 'bg') ---------------------------------
+  // Everything below is only reached in bg mode; the queue loop is untouched.
+
+  const bonusOf = (u: BattleUnit): number =>
+    u.firstAttackDone ? 0 : u.relics.reduce((s, r) => s + (r.firstHitBonus ?? 0), 0);
+
+  /** The next rat in `side`'s attack order: the pointer cycles left to right over living rats. */
+  const nextAttacker = (side: Side): BattleUnit => {
+    const board = boardOf(side);
+    if (cursor[side] >= board.length) cursor[side] = 0;
+    const index = cursor[side]++;
+    return board[index];
+  };
+
+  /**
+   * Who `attacker` hits. A sniper (`weakest`: lowest current health,
+   * `strongest`: highest attack, leftmost on a tie) ignores taunt and draws no
+   * randomness. Everyone else picks uniformly among the living enemies, or
+   * among the taunts only if the enemy has any. Draws come from the
+   * attacker's own side stream and always exactly one per random pick.
+   */
+  const pickTarget = (attacker: BattleUnit): BattleUnit => {
+    const foes = opposing(attacker.side);
+    if (attacker.targeting !== 'random') {
+      let best = foes[0];
+      for (const f of foes) {
+        const better =
+          attacker.targeting === 'weakest' ? f.health < best.health : f.attack > best.attack;
+        if (better) best = f;
+      }
+      return best;
+    }
+    const taunts = foes.filter((f) => f.taunt);
+    const pool = taunts.length > 0 ? taunts : foes;
+    return pool[rngs![attacker.side].int(pool.length)];
+  };
+
+  /**
+   * One hit of `amount` from `src` onto `dst`. A side's block charges absorb
+   * the next hit taken by ANY of its rats, before armor or Tail-Charm.
+   * `direct` hits (an attack, or a target's answer to one) can trigger
+   * Marrow-Snap and Gore-Cleaver; cleave splash and carried overkill cannot.
+   */
+  const strike = (src: BattleUnit, dst: BattleUnit, amount: number, direct: boolean): void => {
+    if (blockCharges[dst.side] > 0) {
+      blockCharges[dst.side]--;
+      events.push({ type: 'shieldAbsorbed', targetId: dst.instanceId });
+      return;
+    }
+    const before = dst.health;
+    applyDamage(dst, amount, 'attack');
+    if (!direct) return;
+    const executeRelic = src.relics.find((r) => r.executeThreshold !== undefined);
+    if (executeRelic && dst.health > 0) {
+      const cutoff = dst.maxHealth * executeRelic.executeThreshold!;
+      if (before > cutoff && dst.health <= cutoff) {
+        events.push({ type: 'relicProc', targetId: src.instanceId, relicId: executeRelic.id, name: executeRelic.name });
+        const finishing = dst.health;
+        dst.health = 0;
+        events.push({ type: 'damage', targetId: dst.instanceId, amount: finishing, remainingHealth: 0 });
+      }
+    }
+    if (dst.health <= 0 && src.relics.some((r) => r.cleaveOverkill)) {
+      // Overkill spills to a neighbour of the fallen rat (right first), once.
+      const board = boardOf(dst.side);
+      const at = board.indexOf(dst);
+      const next = [board[at + 1], board[at - 1]].find((u) => u !== undefined && u.health > 0);
+      const overkill = -dst.health;
+      if (overkill > 0 && next) {
+        events.push({ type: 'relicProc', targetId: src.instanceId, relicId: 'gore-cleaver', name: 'Gore-Cleaver' });
+        applyDamage(next, overkill, 'attack');
+      }
+    }
+  };
+
+  /**
+   * One round. Both sides' attackers pick targets and swing at once. Every
+   * amount is fixed before any damage lands. Hits then land in a
+   * seat-independent order (attacks, then the answering hits), and a rat hit
+   * by both takes the attack first, so swapping seats cannot change who
+   * survives. Then deaths, one poison tick, deaths again.
+   */
+  const bgRound = (): void => {
+    const a = nextAttacker('horde');
+    const b = nextAttacker('gauntlet');
+    const ta = pickTarget(a);
+    const tb = pickTarget(b);
+    const attackers: Array<[BattleUnit, BattleUnit]> = [[a, ta], [b, tb]];
+
+    const outgoing = attackers.map(([u]) => u.attack + bonusOf(u));
+    // The answering hit uses the target's attack as the round began.
+    const answer = attackers.map(([, t]) => t.attack);
+    a.firstAttackDone = true;
+    b.firstAttackDone = true;
+    const splash = attackers.map(([u, t]) => {
+      if (!u.cleave) return [];
+      const board = boardOf(t.side);
+      const at = board.indexOf(t);
+      return [board[at - 1], board[at + 1]].filter((x): x is BattleUnit => x !== undefined);
+    });
+
+    events.push({ type: 'clash', hordeId: a.instanceId, enemyId: ta.instanceId });
+    events.push({ type: 'clash', hordeId: tb.instanceId, enemyId: b.instanceId });
+
+    // Two attackers aimed at each other trade one blow each, not two.
+    const mutual = ta === b && tb === a;
+    attackers.forEach(([u, t], i) => {
+      strike(u, t, outgoing[i], true);
+      for (const n of splash[i]) strike(u, n, outgoing[i], false);
+    });
+    if (!mutual) {
+      attackers.forEach(([u, t], i) => strike(t, u, answer[i], true));
+    }
+    damageThisWave += outgoing[0];
+
+    attackers.forEach(([u, t]) => {
+      if (u.ability?.trigger !== 'afterAttack') return;
+      const at = boardOf(u.side).indexOf(u);
+      if (at !== -1) applyEffect(u, at, false, t);
+    });
+
+    resolveDeaths();
+    for (const board of [horde, enemies]) {
+      for (const unit of [...board]) {
+        if (unit.poison > 0 && unit.health > 0) applyDamage(unit, unit.poison, 'poison');
+      }
+    }
+    resolveDeaths();
+  };
+
   const waveCount = duel ? 1 : gauntlet.waves.length;
   for (let w = 0; w < waveCount && horde.length > 0; w++) {
     // A duel is ONE wave: the opponent's real board at full tiers and relics,
@@ -555,6 +737,8 @@ export function simulate(
     // compounding-law note on `blockCharges` above. `fireEntryTriggers`
     // below re-populates it via any `blockFrontHits` watchers present.
     blockCharges = { horde: 0, gauntlet: 0 };
+    cursor.horde = 0;
+    cursor.gauntlet = 0;
 
     if (duel) {
       fireEntryTriggers(horde, 'own');
@@ -579,6 +763,11 @@ export function simulate(
             events.push({ type: 'heal', targetId: unit.instanceId, amount, newHealth: unit.health });
           }
         }
+      }
+
+      if (bg) {
+        bgRound();
+        continue;
       }
 
       const front = horde[0];

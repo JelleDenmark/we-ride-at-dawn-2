@@ -194,6 +194,16 @@ export interface UnitDef {
   damageReduction?: number;
   /** Extra scrap per raid while this rat is on the board, x tier. The economy rat. */
   scavenge?: number;
+  /** bg combat only: while this rat lives, enemy attackers must pick a taunt (snipers excepted). */
+  taunt?: boolean;
+  /**
+   * bg combat only. 'random' (default) picks a living enemy at random, among
+   * taunts if any. 'weakest' (lowest current health) and 'strongest' (highest
+   * attack) are snipers: they ignore taunt.
+   */
+  targeting?: 'random' | 'weakest' | 'strongest';
+  /** bg combat only: the attack also hits the target's left and right neighbours for the same damage (no answering hit). */
+  cleave?: boolean;
 }
 
 export interface LineupUnit {
@@ -226,6 +236,12 @@ export interface Lineup {
    * `simulate` never reads the clock itself.
    */
   timeOfDay?: TimeOfDay;
+  /**
+   * bg combat only: mixed with this side's units to seed its own random
+   * stream. Duels pass the night seed; omitted = ''. PvE defaults to the
+   * gauntlet's date and hour.
+   */
+  seed?: string;
 }
 
 /** Full spec §5.4 roster. Archetypes: Breed/Swarm, Plague, Sacrifice, Bruiser/Anchor. */

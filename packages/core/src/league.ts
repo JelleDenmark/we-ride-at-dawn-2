@@ -49,7 +49,7 @@ export function scoreRound(entrants: LeagueEntrant[], nightSeed?: string): Round
   const st = entrants.map((e) => ({ id: e.id, points: 0, wins: 0, draws: 0, losses: 0, healthDiff: 0 }));
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const { result } = simulateDuel(boards[i], boards[j]);
+      const { result } = simulateDuel(boards[i], boards[j], nightSeed);
       const diff = result.healthA - result.healthB;
       st[i].healthDiff += diff;
       st[j].healthDiff -= diff;

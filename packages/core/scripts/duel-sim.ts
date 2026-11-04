@@ -4,6 +4,7 @@
  *   npm run duel-sim -w @wrad/core                  # full report, tiers 1-3
  *   npm run duel-sim -w @wrad/core -- swing         # unit win swing only
  *   TIERS=2 SEEDS=1 npm run duel-sim -w @wrad/core  # quicker
+ *   COMBAT=bg npm run duel-sim -w @wrad/core        # Battlegrounds-style rounds (see scripts/lib/combat-mode.ts)
  *   SET="draughtsman-moe.stacks=2,dire-rat.health=4" npm run duel-sim -w @wrad/core
  *
  * Boards are up to 7 rats with no relics, scored over NIGHTS night-variation
@@ -25,6 +26,7 @@ import { simulateDuel } from '../src/duel';
 import { applyNightVariation } from '../src/league';
 import { COMBAT_CAP_BONUS, RULES } from '../src/sim';
 import { xorshift128, type Rng } from '../src/prng';
+import './lib/combat-mode'; // COMBAT=bg switches the combat rules
 
 for (const kv of (process.env.SET ?? '').split(',').filter(Boolean)) {
   const [lhs, v] = kv.split('=');
@@ -67,7 +69,7 @@ const atTier = (ids: string[], tier: number): Board => ids.map((id) => ({ id, ti
 function score(a: Board, b: Board): number {
   let s = 0;
   for (let n = 0; n < NIGHTS; n++) {
-    const w = simulateDuel(applyNightVariation(lineup(a), `n${n}`, 'a'), applyNightVariation(lineup(b), `n${n}`, 'b')).result.winner;
+    const w = simulateDuel(applyNightVariation(lineup(a), `n${n}`, 'a'), applyNightVariation(lineup(b), `n${n}`, 'b'), `n${n}`).result.winner;
     s += w === 'a' ? 1 : w === 'draw' ? 0.5 : 0;
   }
   return s / NIGHTS;

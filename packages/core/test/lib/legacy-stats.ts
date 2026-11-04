@@ -21,7 +21,8 @@ const stats: Record<string, { attack: number; health: number; effect?: Partial<E
 };
 
 for (const [id, s] of Object.entries(stats)) {
-  const def: UnitDef = UNIT_DEFS[id];
+  const def: UnitDef | undefined = UNIT_DEFS[id];
+  if (!def) continue; // retired roster entries
   def.attack = s.attack;
   def.health = s.health;
   if (s.effect && def.ability) Object.assign(def.ability.effect, s.effect);

@@ -174,7 +174,8 @@
     const seed = round.nightSeed;
     const { events, result } = simulateDuel(
       applyNightVariation(ra.board, seed, ra.player_id),
-      applyNightVariation(rb.board, seed, rb.player_id)
+      applyNightVariation(rb.board, seed, rb.player_id),
+      seed
     );
     const end =
       result.winner === 'draw'

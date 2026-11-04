@@ -33,8 +33,15 @@ export interface DuelResult {
  * standing at the stalemate guard -> more surviving health, then more
  * surviving attack, else draw.
  */
-export function simulateDuel(a: Lineup, b: Lineup): { events: BattleEvent[]; result: DuelResult } {
-  const { events, result, enemySurvivors } = simulate(a, NO_GAUNTLET, b);
+export function simulateDuel(
+  a: Lineup,
+  b: Lineup,
+  seed?: string
+): { events: BattleEvent[]; result: DuelResult } {
+  // The night seed reaches both boards, so each side's own random stream
+  // (bg combat) depends on the night and its own board, never on its seat.
+  const { events, result, enemySurvivors } =
+    seed === undefined ? simulate(a, NO_GAUNTLET, b) : simulate({ ...a, seed }, NO_GAUNTLET, { ...b, seed });
   const survivorsA = result.survivors;
   const survivorsB = enemySurvivors;
   const healthA = survivorsA.reduce((s, u) => s + u.health, 0);

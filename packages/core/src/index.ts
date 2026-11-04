@@ -70,6 +70,7 @@ export {
   MAX_TIER,
   MAX_RELICS_PER_RAT,
   seasonUnitPool,
+  raidScrap,
   SEASON_UNIT_COUNT,
   BENCH_SIZE,
   type BuildState,

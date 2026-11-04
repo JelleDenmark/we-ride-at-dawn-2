@@ -37,6 +37,13 @@ export function scrapForDepth(depth: number): number {
   return Math.round(INCOME_CAP * Math.pow(t, INCOME_CURVE));
 }
 
+/** Scrap for one raid: depth income plus every scavenger on the board (x tier). */
+export function raidScrap(depth: number, board: readonly { defId: string; tier?: number }[] = []): number {
+  let extra = 0;
+  for (const u of board) extra += (UNIT_DEFS[u.defId]?.scavenge ?? 0) * (u.tier ?? 1);
+  return scrapForDepth(depth) + extra;
+}
+
 /** One-off scrap the first time a season's best depth reaches each wave. */
 export const MILESTONES: readonly { depth: number; scrap: number }[] = [
   { depth: 10, scrap: 40 },
@@ -214,9 +221,9 @@ export const SEASON_UNIT_COUNT = 10;
 /** One of each strategy is always on offer. */
 const STRATEGY_UNITS: string[][] = [
   ['rat-piper', 'brood-mother'], // swarm
-  ['plague-bearer', 'draughtsman-moe'], // plague
+  ['plague-bearer', 'draughtsman-moe', 'rot-chemist'], // plague
   ['gnawer', 'corpse-glutton', 'bone-priest'], // sacrifice
-  ['dire-rat', 'md-rattyfock'], // bruiser
+  ['dire-rat', 'md-rattyfock', 'press-kin'], // bruiser
 ];
 
 /**

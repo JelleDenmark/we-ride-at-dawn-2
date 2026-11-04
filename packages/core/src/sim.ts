@@ -1,5 +1,5 @@
 import type { Side, UnitDef, Ability, Lineup } from './data/units';
-import { UNIT_DEFS, tierAttackMultiplier, tierHealthMultiplier, reviveHpForTier, blockHitsForTier, poisonStacksForTier } from './data/units';
+import { UNIT_DEFS, tierAttackMultiplier, tierHealthMultiplier, blockHitsForTier, poisonStacksForTier } from './data/units';
 import { ENEMY_POOL } from './data/enemies';
 import { RELIC_DEFS, type RelicDef } from './data/relics';
 import type { Gauntlet } from './gauntlet';
@@ -23,6 +23,11 @@ export const BOARD_CAP = 8;
  * full one. See `combatCapForBuild` in shop.ts.
  */
 export const COMBAT_CAP_BONUS = 2;
+/** Tunable combat rules (the balance script may override them). */
+export const RULES = {
+  /** Share of its max health a Bone-Priest raises a fallen ally at. */
+  reviveFraction: 0.5,
+};
 export const SCORE_PER_WAVE = 100;
 /** Stalemate guard (e.g. two healers out-sustaining each other): the wave is abandoned. */
 export const MAX_TICKS_PER_WAVE = 1000;
@@ -284,9 +289,10 @@ export function simulate(
     switch (effect.kind) {
       case 'summon': {
         const def = DEF_LOOKUP[effect.unitId];
-        for (let i = 0; i < effect.count * tier; i++) {
+        // Pups arrive at the summoner's own tier; litter size does not grow.
+        for (let i = 0; i < effect.count; i++) {
           if (board.length >= combatCaps[source.side]) break;
-          const summoned = instantiate(def, source.side);
+          const summoned = instantiate(def, source.side, [], tier);
           board.splice(index, 0, summoned);
           events.push({ type: 'summon', side: source.side, index, unit: view(summoned) });
         }
@@ -295,7 +301,7 @@ export function simulate(
       case 'buffBehind': {
         const start = removed ? index : index + 1;
         const targets = effect.all ? board.slice(start) : board.slice(start, start + 1);
-        for (const target of targets) buff(target, effect.attack * tierAttackMultiplier(tier), effect.health * tierHealthMultiplier(tier));
+        for (const target of targets) buff(target, effect.attack * tier, effect.health * tier);
         break;
       }
       case 'buffAdjacent': {
@@ -310,7 +316,7 @@ export function simulate(
         const targets: BattleUnit[] = [];
         if (index > 0) targets.push(board[index - 1]);
         if (index < board.length - 1) targets.push(board[index + 1]);
-        for (const target of targets) buff(target, effect.attack * tierAttackMultiplier(tier), effect.health * tierHealthMultiplier(tier));
+        for (const target of targets) buff(target, effect.attack * tier, effect.health * tier);
         break;
       }
       case 'poisonFrontEnemy': {
@@ -335,23 +341,23 @@ export function simulate(
         if (target && target.health > 0) applyPoisonStacks(target, effect.stacks * tier);
         break;
       }
+      case 'poisonStrongest': {
+        let best: BattleUnit | undefined;
+        for (const t of opposing(source.side)) if (t.health > 0 && (!best || t.attack > best.attack)) best = t;
+        if (best) applyPoisonStacks(best, poisonStacksForTier(tier) * effect.stacks);
+        break;
+      }
+      case 'damageAllEnemies': {
+        // Rot-Chemist's burst: hits every foe once for a same-tier pup's health,
+        // so it clears one layer of pups and barely dents a big rat.
+        const amount = effect.amount * tierAttackMultiplier(tier);
+        for (const t of [...opposing(source.side)]) if (t.health > 0) applyDamage(t, amount, 'poison');
+        break;
+      }
       case 'gainStats': {
         if (effect.maxGains !== undefined && source.gains >= effect.maxGains) break;
         source.gains++;
         buff(source, effect.attack * tier, effect.health * tier);
-        break;
-      }
-      case 'teamBuff': {
-        // Compounding-law check: this effect is only ever wired to a
-        // startOfBattle ability (see the Effect doc comment in
-        // data/units.ts), which fires once per unit instance, ever — nothing
-        // re-applies it on a later wave, so it cannot accumulate across the
-        // 45-wave battle. Issue #58: magnitude now comes from
-        // tierAttackMultiplier/tierHealthMultiplier (1x/3x/9x) instead of a
-        // flat `* tier` (1x/2x/3x), matching the same fire-once reasoning as
-        // buffBehind/buffAdjacent below and the unit's own stat curve
-        // (issue #22) — still non-stacking across waves, just steeper per use.
-        for (const target of board) buff(target, effect.attack * tierAttackMultiplier(tier), effect.health * tierHealthMultiplier(tier));
         break;
       }
       case 'revive': {
@@ -380,7 +386,10 @@ export function simulate(
         if (corpseIdx === -1 || board.length >= combatCaps[source.side]) break;
         const [corpse] = fallen[source.side].splice(corpseIdx, 1);
         corpse.raised = true;
-        corpse.health = Math.min(reviveHpForTier(tier), corpse.maxHealth);
+        // Raised rats come back hollow (no ability) at half health, so nothing
+        // can die twice for value (a revived Brood-Mother re-birthing pups).
+        corpse.ability = undefined;
+        corpse.health = Math.max(1, Math.ceil(corpse.maxHealth * RULES.reviveFraction));
         corpse.poison = 0;
         board.splice(index, 0, corpse);
         events.push({ type: 'revive', side: source.side, index, unit: view(corpse) });
@@ -483,7 +492,7 @@ export function simulate(
    * `startOfWave` for every unit, `startOfBattle` only for units that have
    * never fired it. See `Ability` in data/units.ts for why the split exists.
    */
-  const TARGETS_ENEMY = new Set(['poisonFrontEnemy', 'poisonTarget']);
+  const TARGETS_ENEMY = new Set(['poisonFrontEnemy', 'poisonTarget', 'damageAllEnemies', 'poisonStrongest']);
   const fireEntryTriggers = (board: BattleUnit[], phase?: 'own' | 'foe'): void => {
     for (const unit of [...board]) {
       const trigger = unit.ability?.trigger;

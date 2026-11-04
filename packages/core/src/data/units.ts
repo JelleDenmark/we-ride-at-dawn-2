@@ -134,18 +134,10 @@ export type Effect =
    * `Math.max` (never summed) anti-stacking rule for multiple Ward-Weavers.
    */
   | { kind: 'blockFrontHits' }
-  /**
-   * Whole-team stat grant (issue #12: Dawn-Runt/Dusk-Runt) — every horde unit
-   * currently on the board gets `+attack`/`+health`, including the caster
-   * itself (unlike `buffBehind`, which deliberately excludes the caster —
-   * see MD Rattyfock). Only ever wired to a `startOfBattle` trigger, so it
-   * fires once per unit instance, ever, exactly like MD Rattyfock's
-   * `buffBehind`, and cannot compound across the 45-wave battle. Magnitude
-   * scales via `tierAttackMultiplier`/`tierHealthMultiplier` (issue #58)
-   * instead of a flat `* tier`, same fire-once reasoning as `buffBehind`/
-   * `buffAdjacent` above.
-   */
-  | { kind: 'teamBuff'; attack: number; health: number };
+  /** Poisons the living enemy with the highest attack (first in line on a tie). */
+  | { kind: 'poisonStrongest'; stacks: number }
+  /** One hit on every living enemy for `amount` x 1/3/9 (ignores armor). Rot-Chemist, on faint. */
+  | { kind: 'damageAllEnemies'; amount: number };
 
 /**
  * Real-world half-day bucket, Copenhagen local time (issue #12) — matches the
@@ -200,6 +192,8 @@ export interface UnitDef {
    * small hits, near-useless against brutes.
    */
   damageReduction?: number;
+  /** Extra scrap per raid while this rat is on the board, x tier. The economy rat. */
+  scavenge?: number;
 }
 
 export interface LineupUnit {
@@ -237,75 +231,73 @@ export interface Lineup {
 /** Full spec §5.4 roster. Archetypes: Breed/Swarm, Plague, Sacrifice, Bruiser/Anchor. */
 export const UNIT_DEFS: Record<string, UnitDef> = {
   pup: { id: 'pup', name: 'Pup', attack: 1, health: 1, cost: 0 },
+  // Roster v2 (2026-11). Four strategies, each with a tool aimed at another's
+  // weakness: Swarm (bodies), Plague (armor-ignoring poison), Sacrifice (feeds on
+  // its own deaths), Bruiser (big bodies and buffs). Gutter Runt is the economy rat.
   'gutter-runt': {
-    id: 'gutter-runt', name: 'Gutter Runt', attack: 3, health: 3, cost: 2,
-    desc: 'cheap body',
+    id: 'gutter-runt', name: 'Gutter Runt', attack: 2, health: 2, cost: 2,
+    desc: 'scavenger: +1 scrap every raid while on the board (scales ★)',
+    scavenge: 1,
   },
   'rat-piper': {
-    id: 'rat-piper', name: 'Rat-Piper', attack: 3, health: 4, cost: 4,
-    desc: 'each wave: pipes in 3 pups',
-    ability: { trigger: 'startOfWave', effect: { kind: 'summon', unitId: 'pup', count: 3 } },
+    id: 'rat-piper', name: 'Rat-Piper', attack: 1, health: 3, cost: 4,
+    desc: 'start of each fight: pipes in a pup of its own ★',
+    ability: { trigger: 'startOfWave', effect: { kind: 'summon', unitId: 'pup', count: 1 } },
   },
   'brood-mother': {
-    id: 'brood-mother', name: 'Brood-Mother', attack: 2, health: 4, cost: 6,
-    desc: 'faint: births 3 pups',
+    id: 'brood-mother', name: 'Brood-Mother', attack: 2, health: 3, cost: 6,
+    desc: 'faint: births 3 pups of her own ★',
     ability: { trigger: 'faint', effect: { kind: 'summon', unitId: 'pup', count: 3 } },
   },
+  'corpse-glutton': {
+    id: 'corpse-glutton', name: 'Corpse-Glutton', attack: 2, health: 3, cost: 6,
+    desc: 'grows +1/+1 when an ally faints, up to 4 times a fight (scales ★)',
+    ability: { trigger: 'allyFaint', effect: { kind: 'gainStats', attack: 1, health: 1, maxGains: 4 } },
+  },
   'plague-bearer': {
-    id: 'plague-bearer', name: 'Plague-Bearer', attack: 3, health: 4, cost: 4,
-    desc: 'each wave: poisons front foe',
-    ability: { trigger: 'startOfWave', effect: { kind: 'poisonFrontEnemy', stacks: 3 } },
+    id: 'plague-bearer', name: 'Plague-Bearer', attack: 2, health: 3, cost: 4,
+    desc: 'start of each fight: poisons the front foe (scales ★)',
+    ability: { trigger: 'startOfWave', effect: { kind: 'poisonFrontEnemy', stacks: 1 } },
   },
   'draughtsman-moe': {
-    id: 'draughtsman-moe', name: 'Draughtsman Moe', attack: 4, health: 4, cost: 7,
-    desc: 'each wave: heavily poisons the front foe (scales ★)',
-    ability: { trigger: 'startOfWave', effect: { kind: 'poisonFrontEnemy', stacks: 4 } },
+    id: 'draughtsman-moe', name: 'Draughtsman Moe', attack: 3, health: 4, cost: 8,
+    desc: 'start of each fight: poisons the hardest-hitting foe (scales ★)',
+    ability: { trigger: 'startOfWave', effect: { kind: 'poisonStrongest', stacks: 1 } },
+  },
+  'rot-chemist': {
+    id: 'rot-chemist', name: 'Rot-Chemist', attack: 1, health: 4, cost: 6,
+    desc: 'faint: bursts, hitting every foe for a pup’s health (scales ★)',
+    ability: { trigger: 'faint', effect: { kind: 'damageAllEnemies', amount: 1 } },
   },
   gnawer: {
-    id: 'gnawer', name: 'Gnawer', attack: 4, health: 2, cost: 4,
-    desc: 'faint: buffs the rat behind (scales ★)',
+    id: 'gnawer', name: 'Gnawer', attack: 3, health: 1, cost: 4,
+    desc: 'faint: the rat behind gets +3 attack (scales ★)',
     ability: { trigger: 'faint', effect: { kind: 'buffBehind', attack: 3, health: 0 } },
   },
-  'corpse-glutton': {
-    id: 'corpse-glutton', name: 'Corpse-Glutton', attack: 3, health: 2, cost: 6,
-    desc: '+1/+1 when an ally faints, up to 3 times a battle',
-    ability: { trigger: 'allyFaint', effect: { kind: 'gainStats', attack: 1, health: 1, maxGains: 3 } },
-  },
   'bone-priest': {
-    id: 'bone-priest', name: 'Bone-Priest', attack: 1, health: 3, cost: 6,
-    desc: 'faint: revives first fallen at 1/2/3 HP (tier), capped at their own max',
+    id: 'bone-priest', name: 'Bone-Priest', attack: 1, health: 4, cost: 7,
+    desc: 'faint: raises the first fallen ally at half health, hollow (no ability)',
     ability: { trigger: 'faint', effect: { kind: 'revive' } },
   },
   'dire-rat': {
-    id: 'dire-rat', name: 'Dire-Rat', attack: 3, health: 4, cost: 8,
-    desc: 'hide like a door: shrugs off 2 from every blow',
+    id: 'dire-rat', name: 'Dire-Rat', attack: 4, health: 4, cost: 8,
+    desc: 'hide like a door: shrugs off 2 from every blow (scales ★)',
     damageReduction: 2,
   },
   'md-rattyfock': {
-    id: 'md-rattyfock', name: 'MD Rattyfock', attack: 2, health: 4, cost: 6,
-    desc: 'Season 1 survivor, patched and returned; battle: buffs all rats behind it (scales ★)',
+    id: 'md-rattyfock', name: 'MD Rattyfock', attack: 2, health: 5, cost: 6,
+    desc: 'Season 1 survivor; start of fight: every rat behind it gets +1 attack (scales ★)',
     ability: { trigger: 'startOfBattle', effect: { kind: 'buffBehind', attack: 1, health: 0, all: true } },
   },
   'press-kin': {
-    id: 'press-kin', name: 'Press-Kin', attack: 2, health: 3, cost: 5,
-    desc: 'battle: buffs the rats beside it, best in the middle (scales ★)',
+    id: 'press-kin', name: 'Press-Kin', attack: 2, health: 4, cost: 5,
+    desc: 'start of fight: the rats beside it get +1/+1, best in the middle (scales ★)',
     ability: { trigger: 'startOfBattle', effect: { kind: 'buffAdjacent', attack: 1, health: 1 } },
   },
   'ward-weaver': {
-    id: 'ward-weaver', name: 'Ward-Weaver', attack: 2, health: 4, cost: 6,
-    desc: 'each wave, blocks the front rat’s hit outright — ★3 blocks 2 hits; resets every wave',
+    id: 'ward-weaver', name: 'Ward-Weaver', attack: 1, health: 4, cost: 7,
+    desc: 'start of each fight: blocks the front rat’s next hit (★3: two hits)',
     ability: { trigger: 'startOfWave', effect: { kind: 'blockFrontHits' } },
-  },
-  // The Runt pair: whole-team attack (Dawn) / health (Dusk), no time-of-day gate.
-  'dawn-runt': {
-    id: 'dawn-runt', name: 'Dawn-Runt', attack: 0, health: 1, cost: 4,
-    desc: 'battle: buffs the whole horde’s attack (scales ★)',
-    ability: { trigger: 'startOfBattle', effect: { kind: 'teamBuff', attack: 1, health: 0 } },
-  },
-  'dusk-runt': {
-    id: 'dusk-runt', name: 'Dusk-Runt', attack: 1, health: 2, cost: 4,
-    desc: 'battle: buffs the whole horde’s health (scales ★)',
-    ability: { trigger: 'startOfBattle', effect: { kind: 'teamBuff', attack: 0, health: 1 } },
   },
 };
 

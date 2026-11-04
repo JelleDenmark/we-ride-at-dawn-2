@@ -126,7 +126,10 @@ export async function discordPost(f: Fetch, content: string): Promise<void> {
 /* ---------- Supabase REST ---------- */
 
 export function makeDb(f: Fetch, key: string, base = SUPABASE_URL) {
-  const headers = { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+  // Legacy service_role keys are JWTs and also go in Authorization. New
+  // `sb_secret_` keys are not JWTs and must only be sent as `apikey`.
+  const headers: Record<string, string> = { apikey: key, 'Content-Type': 'application/json' };
+  if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
   const get = async <T>(path: string): Promise<T> => {
     const res = await f(`${base}/rest/v1/${path}`, { headers });
     if (!res.ok) throw new Error(`GET ${path.split('?')[0]} ${res.status} ${await res.text()}`);

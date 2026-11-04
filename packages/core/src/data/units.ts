@@ -26,7 +26,11 @@ export function tierHealthMultiplier(tier: number): number {
 }
 
 /**
- * HP a Bone-Priest's `revive` returns the raised ally at, by tier (issue
+ * LEGACY (roster v2): no longer used by the sim — a revive now raises the ally
+ * hollow at `ceil(maxHealth * RULES.reviveFraction)`. Kept exported only until
+ * the app stops importing it for its ability text.
+ *
+ * HP a Bone-Priest's `revive` used to return the raised ally at, by tier (issue
  * #53). Deliberately NOT `tierHealthMultiplier` or any other flat multiplier
  * of a base value — `revive` fires exactly once per Bone-Priest instance
  * (its own `faint` trigger, which a unit only hits once), so unlike

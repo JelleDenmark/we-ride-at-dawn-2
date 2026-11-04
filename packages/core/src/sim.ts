@@ -413,6 +413,9 @@ export function simulate(
     }
   };
 
+  /** Effects aimed at the opposing board (fired in a separate pass in duels). */
+  const TARGETS_ENEMY = new Set(['poisonFrontEnemy', 'poisonTarget', 'damageAllEnemies', 'poisonStrongest']);
+
   /**
    * Duel death resolution: seat-symmetric. Neither side's faint triggers run
    * until BOTH sides' dead are off the board, then faint-relic splash lands
@@ -444,9 +447,16 @@ export function simulate(
       }
       // Back to front within a board, so an earlier index stays valid after a
       // later corpse has summoned behind it.
-      for (let k = batch.length - 1; k >= 0; k--) {
-        const { unit, index } = batch[k];
-        if (unit.ability?.trigger === 'faint') applyEffect(unit, index, true);
+      // Foe-targeting faint effects (Rot-Chemist's burst) land for BOTH sides
+      // first, like the relic splash, so seat order cannot decide whether a
+      // burst catches pups the other side summons on the same tick.
+      for (const phase of ['foe', 'own'] as const) {
+        for (let k = batch.length - 1; k >= 0; k--) {
+          const { unit, index } = batch[k];
+          if (unit.ability?.trigger !== 'faint') continue;
+          if (TARGETS_ENEMY.has(unit.ability.effect.kind) !== (phase === 'foe')) continue;
+          applyEffect(unit, index, true);
+        }
       }
       for (const { board } of batch) {
         for (const ally of [...board]) {
@@ -492,7 +502,6 @@ export function simulate(
    * `startOfWave` for every unit, `startOfBattle` only for units that have
    * never fired it. See `Ability` in data/units.ts for why the split exists.
    */
-  const TARGETS_ENEMY = new Set(['poisonFrontEnemy', 'poisonTarget', 'damageAllEnemies', 'poisonStrongest']);
   const fireEntryTriggers = (board: BattleUnit[], phase?: 'own' | 'foe'): void => {
     for (const unit of [...board]) {
       const trigger = unit.ability?.trigger;

@@ -1,0 +1,31 @@
+name: Discord post
+
+# Posts a committed message payload (scripts/discord/*.json) to #wrad as the bot.
+# Manual only; each run posts once.
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: 'Payload file under scripts/discord/'
+        required: true
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Post
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          FILE: scripts/discord/${{ inputs.file }}
+        run: |
+          case "$FILE" in *..*) echo "bad path"; exit 1;; esac
+          python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$FILE"
+          code=$(curl -sS -o resp.txt -w '%{http_code}' -X POST \
+            "https://discord.com/api/v10/channels/1524165668004560896/messages" \
+            -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: DiscordBot (https://github.com/JelleDenmark/we-ride-at-dawn-2, 1.0)" \
+            --data-binary "@$FILE")
+          echo "HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ] || { cat resp.txt; exit 1; }

@@ -22,4 +22,15 @@ said +2; +2 sat on every board). Weak: Bone-Priest, Gutter-Runt, Ward-Weaver; Sa
 tier 3. Poison is capped by a duel being one front foe. Economy: 14 raids/day finishes day 6-7;
 24/day day 4-5.
 
+**Roster review 2026-11-04 (sim, not shipped; target Monday 2026-11-09 reset):**
+Structural causes found: pups always summon at tier 1 and combat cap is deployed+2, so Swarm
+cannot scale; a revived Brood-Mother/Gnawer re-fires its faint effect (Bone-Priest = "dies
+twice", the real trio engine); buffs scale 1/3/9 like stats, so board-wide buffers win; Dawn/Dusk
+Runt fit every board; Plague-Bearer and Moe share one mechanic; armor scales 2/4/6 vs 1/3/9 stats.
+Best structure tested: remove Dawn/Dusk-Runt; pups take summoner tier (count no longer x tier);
+revived rats come back hollow (no ability) at 50% HP; buffs scale 1/2/3; Moe poisons the
+highest-attack enemy. With it each tier has a different leader and every strategy has a counter.
+Rejected: poison carry-over on death and Moe poison-all (stall/rot combos, 90-100% of boards).
+Numbers still swing (Moe, Dire-Rat, Brood-Mother count) and need a tuning pass in duel-sim.
+
 **Next:** first real data from players. Watch Dusk-Runt and Rattyfock share on real boards.

@@ -1,10 +1,10 @@
 name: League nightly round
 
 # Scores the nightly league (packages/core/scripts/run-league-round.ts).
-# The schedule below is a fallback: GitHub cron can run late or skip. Triggering
-# workflow_dispatch from Supabase pg_cron is more reliable (SQL at the end of
-# supabase/migrations/2026-11-03-league.sql). A second run for a closed round
-# is a no-op, so having both is safe.
+# GitHub cron is UTC and can run late or skip, so it fires four times; a
+# scheduled run only scores between 21:30 and midnight Copenhagen time (which
+# covers both winter and summer time), and a second run for a closed round is a
+# no-op. Manual dispatch always runs.
 on:
   workflow_dispatch:
     inputs:
@@ -13,7 +13,10 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: '40 20 * * *'
+    - cron: '35 19 * * *'
+    - cron: '50 19 * * *'
+    - cron: '35 20 * * *'
+    - cron: '50 20 * * *'
 
 jobs:
   round:
@@ -29,4 +32,4 @@ jobs:
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-        run: npm run league:round -- ${{ (github.event_name == 'workflow_dispatch' && inputs.dry) && '--dry' || '' }}
+        run: npm run league:round -- ${{ (github.event_name == 'workflow_dispatch' && inputs.dry) && '--dry' || '' }} ${{ github.event_name == 'schedule' && '--scheduled' || '' }}

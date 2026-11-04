@@ -8,9 +8,14 @@
  */
 import { currentRideDate } from '../src/seed';
 import { seasonIdFor } from '../src/shop';
-import { runRound } from './lib/league-round';
+import { runRound, inRoundWindow } from './lib/league-round';
 
-const dry = process.argv.slice(2).some((a) => a === '--dry' || a === 'dry');
+const args = process.argv.slice(2);
+const dry = args.some((a) => a === '--dry' || a === 'dry');
+if (args.includes('--scheduled') && !inRoundWindow(new Date())) {
+  console.log('Outside the 21:30-24:00 Copenhagen window, skipping this scheduled run.');
+  process.exit(0);
+}
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!key) {
   console.error('SUPABASE_SERVICE_ROLE_KEY is required (boards are not anon-readable).');

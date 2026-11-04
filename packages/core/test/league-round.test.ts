@@ -76,3 +76,14 @@ describe('league round', () => {
     });
   });
 });
+
+describe('scheduled round window', () => {
+  it('opens at 21:30 Copenhagen time in winter and in summer', async () => {
+    const { inRoundWindow } = await import('../scripts/lib/league-round');
+    expect(inRoundWindow(new Date('2026-11-04T20:35:00Z'))).toBe(true); // 21:35 CET
+    expect(inRoundWindow(new Date('2026-11-04T19:50:00Z'))).toBe(false); // 20:50 CET
+    expect(inRoundWindow(new Date('2026-07-04T19:35:00Z'))).toBe(true); // 21:35 CEST
+    expect(inRoundWindow(new Date('2026-07-04T19:10:00Z'))).toBe(false); // 21:10 CEST
+    expect(inRoundWindow(new Date('2026-07-04T22:05:00Z'))).toBe(false); // 00:05 next day
+  });
+});

@@ -1,21 +1,25 @@
 # State (replaced each session)
 
-Updated 2026-11-03. The design page is the only design document.
+Updated 2026-11-04. The design page is the only design document. Claude owns the
+game day to day (balance, ops); Jesper decides rules and features and relays player feedback.
 
-**Repo:** started from old repo v0.6.5 (`17f11c1`). Duel, nightly round and
-seat-fair resolution are ported (`duel.ts`, `league.ts`, `sim.ts`). PvE output
-is byte-identical to v0.6.5 (golden hashes pass).
+**Live:** https://jelledenmark.github.io/we-ride-at-dawn-2/ (master), /dev/ (dev). Deploys on
+push to either. Default branch master.
 
-**Check:** `npm run duel-sim -w @wrad/core` (swing / evolve / matrix). Run before Monday.
+**Nightly round:** `.github/workflows/league-nightly.yml`, GitHub schedule 4x per evening (UTC);
+scheduled runs only score 21:30-24:00 Copenhagen, so winter/summer time needs no edit. A closed
+round is a no-op. Scores the season and the `dev-` season (no posts). No standings post with
+fewer than 2 boards. Secrets: SUPABASE_SERVICE_ROLE_KEY (sb_secret_, sent as apikey only),
+DISCORD_BOT_TOKEN. pg_cron trigger not set up (SQL at end of the league migration).
+Dry run 2026-11-04: OK, 0 boards.
 
-**Balance (launch roster, 14 units, numbers only):** duel-sim now averages NIGHTS=4
-night-variation seeds and pools SEEDS=3 evolve runs. Bruiser core, Rat-Piper, Plague-Bearer,
-Moe, Gnawer, Brood-Mother retuned (see git log). Evolved boards, seeds pooled: top unit
-60-90% (Dusk-Runt, MD Rattyfock; Dawn-Runt strongest in swing at +14-17), trio together 0-16%.
-Corpse-Glutton cap is 3 (76% of tier-1 boards, 3% at tier 2, weak at tier 3).
-Dusk-Runt is +1 health, not +2 (+2 swing was +31). Poison is capped by a duel being one wave
-(one front foe), so extra stacks beyond ~4 do nothing.
-**Open:** Bone-Priest and Gutter-Runt/Ward-Weaver are weak in swing (-6..-15); Sacrifice loses
-to most at tier 3; Dusk/Dawn/Rattyfock still over 60% at some tiers. Economy: 14/day median day 7,
-earliest 6; 24/day median 5, earliest 4.
-- Not started: economy (20 waves, 12 scrap cap), (app UI for standings, tonight's duel, open boards and duel replay is now built, against the league_* contract).
+**Balance check:** `npm run duel-sim -w @wrad/core` (swing / evolve / matrix) before Monday.
+One small change per week, at the Monday reset.
+
+**Launch balance (sim, tiers 1-3):** top evolved units Dusk-Runt 70-95%, MD Rattyfock 51-74%,
+Dawn-Runt up to 60%. Trio together 0-16%. Corpse-Glutton cap 3. Dusk-Runt +1 health (design
+said +2; +2 sat on every board). Weak: Bone-Priest, Gutter-Runt, Ward-Weaver; Sacrifice weak at
+tier 3. Poison is capped by a duel being one front foe. Economy: 14 raids/day finishes day 6-7;
+24/day day 4-5.
+
+**Next:** first real data from players. Watch Dusk-Runt and Rattyfock share on real boards.

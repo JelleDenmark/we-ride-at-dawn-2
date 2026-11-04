@@ -123,6 +123,16 @@ export async function discordPost(f: Fetch, content: string): Promise<void> {
   }
 }
 
+/** Scheduled runs score only between 21:30 and midnight, Copenhagen time. */
+export function inRoundWindow(now: Date): boolean {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now);
+  const h = Number(parts.find((p) => p.type === 'hour')!.value);
+  const m = Number(parts.find((p) => p.type === 'minute')!.value);
+  return h * 60 + m >= 21 * 60 + 30;
+}
+
 /* ---------- Supabase REST ---------- */
 
 export function makeDb(f: Fetch, key: string, base = SUPABASE_URL) {
@@ -190,7 +200,8 @@ export async function runRound(f: Fetch, key: string, o: RoundOpts) {
   });
 
   if (o.notify === false) return { status: 'closed' as const, results };
-  await discordPost(f, standingsMessage(o.rideDate, results));
+  // No standings post until at least two boards duel (no noise before launch).
+  if (results.length >= 2) await discordPost(f, standingsMessage(o.rideDate, results));
   if (isSunday(o.rideDate)) {
     const totals = seasonTotals(await db.seasonResults(o.season));
     await discordPost(f, championMessage(totals[0]));

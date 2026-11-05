@@ -11,3 +11,7 @@ Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 ### Domain docs
 
 Single-context: one `CONTEXT.md` at the repo root. The design page (external) is the only design doc; `STATE.md` is current status. See `docs/agents/domain.md`.
+
+### Roster and balance
+
+Claude owns balance and day-to-day development. Before any roster, rule or balance change, use the `roster-review` skill (`.claude/skills/roster-review/SKILL.md`). Ops and current state: `STATE.md`.

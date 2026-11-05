@@ -78,7 +78,8 @@ not walls: loosen them when it clearly helps, and say so.
 
 ## Periodic review
 A scheduled task runs this review every four weeks. Each time: read `STATE.md`
-and player feedback, check the last seasons' real final boards (league_results)
+and player feedback (open GitHub issues labelled player-bug/feedback/question,
+filed from the Discord panel), check the last seasons' real final boards (league_results)
 against the sim's predictions, run the full sim, and decide whether the next
 reset needs a number change, a rule change, or nothing. Record the conclusion in
 `STATE.md`.

@@ -51,5 +51,10 @@ final round to close); post patch notes Mon 2026-11-09 06:10 (only if v2 is live
 review on the 3rd, 14:37 Copenhagen (follows the roster-review skill). Scheduled sessions run
 without connectors (no Claude Docs), so design-page updates may land in "To do" here instead.
 
+**Player feedback:** players use the Discord "Feedback & Support" panel in #wrad (old discord-feedback
+edge function, stores rows in Supabase public.feedback). `.github/workflows/feedback-to-issues.yml`
+files new rows (from 2026-11-03) as GitHub issues every 6 hours (needs-triage + player-bug/feedback/
+question; text only, no Discord identity). Read open issues before any balance change.
+
 **Known gaps:** app has no test setup; sanitizer in packages/app/src/roster.ts verified manually.
 The night -1/0/+1 attack shift is per slot (Jesper: keep), visible in "Tonight's duel".

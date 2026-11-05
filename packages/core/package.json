@@ -10,7 +10,8 @@
     "test": "vitest run",
     "balance:economy": "tsx scripts/economy.ts",
     "duel-sim": "tsx scripts/duel-sim.ts",
-    "league:round": "tsx scripts/run-league-round.ts"
+    "league:round": "tsx scripts/run-league-round.ts",
+    "feedback": "tsx scripts/feedback-to-issues.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

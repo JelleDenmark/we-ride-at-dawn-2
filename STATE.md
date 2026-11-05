@@ -46,5 +46,10 @@ if it beats v2 in the budget sim AND replays read clearly on a phone; otherwise 
 engine. Use season-2 real boards and player feedback. The replay (ReplayPlayer) has not been
 checked with bg events.
 
+**Scheduled tasks (each starts a fresh session):** deploy v2 Sun 2026-11-08 22:40 (waits for the
+final round to close); post patch notes Mon 2026-11-09 06:10 (only if v2 is live); monthly roster
+review on the 3rd, 14:37 Copenhagen (follows the roster-review skill). Scheduled sessions run
+without connectors (no Claude Docs), so design-page updates may land in "To do" here instead.
+
 **Known gaps:** app has no test setup; sanitizer in packages/app/src/roster.ts verified manually.
 The night -1/0/+1 attack shift is per slot (Jesper: keep), visible in "Tonight's duel".

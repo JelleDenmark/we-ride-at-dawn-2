@@ -12,7 +12,10 @@ to either. Default branch master. Season 1 (week of 2026-11-02) runs the launch 
 only score 21:30-24:00 Copenhagen, closed round = no-op, also scores the `dev-` season silently,
 no standings post below 2 boards). Discord posts: commit a payload to `scripts/discord/` and run
 the "Discord post" workflow. Secrets: SUPABASE_SERVICE_ROLE_KEY (sb_secret_, sent as apikey only),
-DISCORD_BOT_TOKEN. No pg_cron. Supabase tables `league_*` (migration in supabase/migrations).
+DISCORD_BOT_TOKEN. No pg_cron.
+**WRAD1 retired 2026-11-06:** `/we-ride-at-dawn/` (+ `/dev/`) redirects here. Its repo no longer
+pings Supabase, so this repo's keep-alive is the only one for the shared project. WRAD1's
+discord-feedback edge function still serves the #wrad feedback panel: don't delete it. Supabase tables `league_*` (migration in supabase/migrations).
 
 **Branches:**
 - `wt/v2` — roster v2, tested (208 core tests, app builds), NOT live. Ships after Sunday

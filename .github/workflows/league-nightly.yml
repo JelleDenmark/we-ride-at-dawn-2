@@ -1,16 +1,25 @@
 name: League nightly round
 
 # Scores the nightly league (packages/core/scripts/run-league-round.ts).
-# Primary trigger: a workflow_dispatch at ~21:50 Copenhagen (see STATE.md), since
-# GitHub's schedule ran every night of season 1 4-5 hours late. The cron entries
-# below are the fallback: a scheduled run scores from 21:30 until the 06:00
-# rollover Copenhagen time (the ride date is still the evening's until then), and
-# a second run for a closed round is a no-op. Manual dispatch always runs.
+# Primary trigger: Supabase pg_cron dispatches this workflow with scheduled=true
+# at 19:40 and 20:40 UTC (job 'league-nightly-trigger', SQL in
+# supabase/migrations/2026-11-07-league-pg-cron.sql). pg_cron is UTC, so one of the
+# two lands at 21:40 Copenhagen whatever the season; the other is skipped by the
+# window or is a no-op on a closed round. Same set-up WRAD1 used (its issue #185):
+# GitHub's own schedule ran every night of season 1 4-5 hours late.
+# The cron entries below are the fallback. A scheduled run scores from 21:30 until
+# the 06:00 rollover Copenhagen time (the ride date is still the evening's until
+# then), and a second run for a closed round is a no-op. A manual dispatch without
+# scheduled=true always runs.
 on:
   workflow_dispatch:
     inputs:
       dry:
         description: 'Preview only (score, write and post nothing)'
+        type: boolean
+        default: false
+      scheduled:
+        description: 'Obey the 21:30-06:00 Copenhagen window (set by the pg_cron trigger)'
         type: boolean
         default: false
   schedule:
@@ -33,4 +42,4 @@ jobs:
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-        run: npm run league:round -- ${{ (github.event_name == 'workflow_dispatch' && inputs.dry) && '--dry' || '' }} ${{ github.event_name == 'schedule' && '--scheduled' || '' }}
+        run: npm run league:round -- ${{ (github.event_name == 'workflow_dispatch' && inputs.dry) && '--dry' || '' }} ${{ (github.event_name == 'schedule' || format('{0}', inputs.scheduled) == 'true') && '--scheduled' || '' }}

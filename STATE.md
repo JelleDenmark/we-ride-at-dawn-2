@@ -43,7 +43,14 @@ swarm -1 wave), fights ~45% shorter (9 vs 16 rounds). Diversity not better yet: 
 budget 150, bruiser 49% at 400. Value is the design space (taunt/sniper/cleave, random targets
 could replace the -1/0/+1 night shift).
 
-**Next (week of 2026-11-09):** design roster v3 for the bg engine (every rat gets a targeting
+**Jesper away ~2026-11-07 to 2026-11-22 (his decision 2026-11-07):** roster v2 stays live until he
+is back. No new combat engine or roster overhaul; v3 is built and tested on branch `wt/v3` only, with
+a review note (docs/v3-review.md) for his return. Small numeric tweaks at a Monday reset are allowed
+if the data clearly calls for them. Bug fixes ship right away. Rule-level ideas wait for him.
+Scheduled while away: daily ops check 09:41 (round, deploys, issue triage, bug fixes); v3 branch
+work Tue 11-10; reset reviews Sat 11-14 and Sat 11-21 (the second writes a recap for Jesper).
+
+**Next (week of 2026-11-09):** (superseded by the away plan above: build v3 on `wt/v3`, do not ship) design roster v3 for the bg engine (every rat gets a targeting
 role: taunt tanks, snipers, cleavers, rats that profit from random hits); ship on 2026-11-16 only
 if it beats v2 in the budget sim AND replays read clearly on a phone; otherwise keep the queue
 engine. Use season-2 real boards and player feedback. The replay (ReplayPlayer) has not been

@@ -12,9 +12,12 @@ to either. Default branch master. Season 1 (week of 2026-11-02) runs the launch 
 every scheduled run 4-5 h late (00:48-02:08 Copenhagen), outside the old 21:30-24:00 window. Since
 2026-11-07: primary trigger is a daily Claude scheduled task that dispatches the workflow at 21:52
 Copenhagen; fallback is the 4 UTC cron entries, which now score 21:30-05:59 (same ride date until the
-06:00 rollover). Proper fix (as WRAD1 did): supabase/migrations/2026-11-07-league-pg-cron.sql, run by Jesper
-(needs a GitHub token in Supabase Vault). Once its runs show up as workflow_dispatch at 19:40/20:40
-UTC, disable the 21:52 Claude dispatch task. Old notes: closed round = no-op, also scores the `dev-` season silently,
+06:00 rollover). Proper fix LIVE 2026-11-07 (as WRAD1 did): Supabase pg_cron job 'league-nightly-trigger'
+(supabase/migrations/2026-11-07-league-pg-cron.sql, token = Vault secret 'github_pat') dispatches
+with scheduled=true at 19:40 and 20:40 UTC. Its runs show as workflow_dispatch at :40 past. Once one
+has scored a round, the 21:52 Claude dispatch task ("WRAD2: dispatch the nightly league round")
+can be disabled. First round ever scored: 2026-11-07 (3 boards), after fixing health_diff being
+written as a decimal into an int column (2a30ae9). Old notes: closed round = no-op, also scores the `dev-` season silently,
 no standings post below 2 boards). Discord posts: commit a payload to `scripts/discord/` and run
 the "Discord post" workflow. Secrets: SUPABASE_SERVICE_ROLE_KEY (sb_secret_, sent as apikey only),
 DISCORD_BOT_TOKEN. No pg_cron.

@@ -60,7 +60,9 @@ export function buildResults(
     return {
       round_id: roundId, season, player_id: s.id, name: r.name, board: r.board,
       points: s.points, wins: s.wins, draws: s.draws, losses: s.losses,
-      health_diff: s.healthDiff, rank: i + 1,
+      // league_results.health_diff is an int column; health can be fractional
+      // (revived rats come back at half health). Rank uses the exact value.
+      health_diff: Math.round(s.healthDiff), rank: i + 1,
     };
   });
 }

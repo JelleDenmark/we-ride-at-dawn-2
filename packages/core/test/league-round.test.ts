@@ -77,6 +77,22 @@ describe('league round', () => {
   });
 });
 
+describe('buildResults health_diff', () => {
+  it('stores a whole number for the int column, keeping the exact-value rank', () => {
+    const rows = [
+      { player_id: 'a', name: 'A', board: { units: [] }, cleared_at: null },
+      { player_id: 'b', name: 'B', board: { units: [] }, cleared_at: null },
+    ] as any;
+    const standings = [
+      { id: 'a', points: 3, wins: 1, draws: 0, losses: 0, healthDiff: 434.8571428571429 },
+      { id: 'b', points: 0, wins: 0, draws: 0, losses: 1, healthDiff: -434.8571428571429 },
+    ];
+    const res = buildResults('s#d', 's', rows, standings);
+    expect(res.map((r) => r.health_diff)).toEqual([435, -435]);
+    expect(res.every((r) => Number.isInteger(r.health_diff))).toBe(true);
+  });
+});
+
 describe('scheduled round window', () => {
   it('runs from 21:30 until the 06:00 rollover, Copenhagen time, winter and summer', async () => {
     const { inRoundWindow } = await import('../scripts/lib/league-round');

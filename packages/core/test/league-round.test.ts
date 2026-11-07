@@ -78,12 +78,16 @@ describe('league round', () => {
 });
 
 describe('scheduled round window', () => {
-  it('opens at 21:30 Copenhagen time in winter and in summer', async () => {
+  it('runs from 21:30 until the 06:00 rollover, Copenhagen time, winter and summer', async () => {
     const { inRoundWindow } = await import('../scripts/lib/league-round');
     expect(inRoundWindow(new Date('2026-11-04T20:35:00Z'))).toBe(true); // 21:35 CET
     expect(inRoundWindow(new Date('2026-11-04T19:50:00Z'))).toBe(false); // 20:50 CET
     expect(inRoundWindow(new Date('2026-07-04T19:35:00Z'))).toBe(true); // 21:35 CEST
     expect(inRoundWindow(new Date('2026-07-04T19:10:00Z'))).toBe(false); // 21:10 CEST
-    expect(inRoundWindow(new Date('2026-07-04T22:05:00Z'))).toBe(false); // 00:05 next day
+    expect(inRoundWindow(new Date('2026-07-04T22:05:00Z'))).toBe(true); // 00:05 next day, same ride date
+    expect(inRoundWindow(new Date('2026-11-07T00:23:00Z'))).toBe(true); // 01:23 CET, when GitHub actually ran
+    expect(inRoundWindow(new Date('2026-11-07T04:59:00Z'))).toBe(true); // 05:59 CET, last minute
+    expect(inRoundWindow(new Date('2026-11-07T05:00:00Z'))).toBe(false); // 06:00 CET, new ride date
+    expect(inRoundWindow(new Date('2026-07-04T04:00:00Z'))).toBe(false); // 06:00 CEST
   });
 });

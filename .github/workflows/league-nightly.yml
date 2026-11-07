@@ -1,10 +1,11 @@
 name: League nightly round
 
 # Scores the nightly league (packages/core/scripts/run-league-round.ts).
-# GitHub cron is UTC and can run late or skip, so it fires four times; a
-# scheduled run only scores between 21:30 and midnight Copenhagen time (which
-# covers both winter and summer time), and a second run for a closed round is a
-# no-op. Manual dispatch always runs.
+# Primary trigger: a workflow_dispatch at ~21:50 Copenhagen (see STATE.md), since
+# GitHub's schedule ran every night of season 1 4-5 hours late. The cron entries
+# below are the fallback: a scheduled run scores from 21:30 until the 06:00
+# rollover Copenhagen time (the ride date is still the evening's until then), and
+# a second run for a closed round is a no-op. Manual dispatch always runs.
 on:
   workflow_dispatch:
     inputs:

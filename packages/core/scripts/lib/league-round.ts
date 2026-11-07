@@ -123,14 +123,23 @@ export async function discordPost(f: Fetch, content: string): Promise<void> {
   }
 }
 
-/** Scheduled runs score only between 21:30 and midnight, Copenhagen time. */
+/**
+ * Scheduled runs score from 21:30 Copenhagen time until the 06:00 rollover.
+ * Before 06:00 the ride date is still the previous evening's (currentRideDate),
+ * so a late run scores the right round. The window used to close at midnight,
+ * and GitHub started every scheduled run of season 1 between 00:48 and 02:08
+ * Copenhagen time (4-5 h late), so no round of that season was ever scored.
+ * The reliable trigger is a dispatch at ~21:50 (see STATE.md); this is the
+ * fallback. Trade-off: a board changed between 22:00 and a late run counts.
+ */
 export function inRoundWindow(now: Date): boolean {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).formatToParts(now);
   const h = Number(parts.find((p) => p.type === 'hour')!.value);
   const m = Number(parts.find((p) => p.type === 'minute')!.value);
-  return h * 60 + m >= 21 * 60 + 30;
+  const mins = h * 60 + m;
+  return mins >= 21 * 60 + 30 || mins < 6 * 60;
 }
 
 /* ---------- Supabase REST ---------- */

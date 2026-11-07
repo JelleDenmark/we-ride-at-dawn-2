@@ -6,12 +6,12 @@
 --
 -- Needs: a GitHub token that may run workflows on JelleDenmark/we-ride-at-dawn-2
 -- (fine-grained: repository access to we-ride-at-dawn-2, permission
--- "Actions: Read and write"), stored in Supabase Vault as 'gh_dispatch_token'.
+-- "Actions: Read and write"), stored in Supabase Vault as 'github_pat' (WRAD1's token, given access to we-ride-at-dawn-2 on 2026-11-07).
 -- WRAD1's token may already be in Vault; list names with:
 --   select name, updated_at from vault.secrets;
 -- If it is, give that token access to we-ride-at-dawn-2 on GitHub and use its
 -- name below. Otherwise create one:
---   select vault.create_secret('<token>', 'gh_dispatch_token');
+--   select vault.create_secret('<token>', 'github_pat');
 --
 -- pg_cron runs in UTC. Two dispatches with scheduled=true: one lands at 21:40
 -- Copenhagen in winter (20:40 UTC) and one in summer (19:40 UTC). The other is
@@ -26,7 +26,7 @@ select cron.schedule('league-nightly-trigger', '40 19,20 * * *', $cron$
   select net.http_post(
     url := 'https://api.github.com/repos/JelleDenmark/we-ride-at-dawn-2/actions/workflows/league-nightly.yml/dispatches',
     headers := jsonb_build_object(
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'gh_dispatch_token'),
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'github_pat'),
       'Accept', 'application/vnd.github+json',
       'X-GitHub-Api-Version', '2022-11-28',
       'User-Agent', 'wrad2-pg-cron'),

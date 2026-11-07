@@ -70,5 +70,10 @@ edge function, stores rows in Supabase public.feedback). `.github/workflows/feed
 files new rows (from 2026-11-03) as GitHub issues every 6 hours (needs-triage + player-bug/feedback/
 question; text only, no Discord identity). Read open issues before any balance change.
 
+**Feedback 2026-11-07 (Jesper):** players clear all 20 waves fast, much earlier than the sim's
+day 6-7 (14 raids/day). Check real clear days (league_boards.cleared_at vs season start) at the
+2026-11-14 reset review. If confirmed, the levers are numeric (enemy scaling, INCOME_CAP), not
+WAVE_COUNT. Re-check after v2 is live: v2 changes the economy (scavenging runt).
+
 **Known gaps:** app has no test setup; sanitizer in packages/app/src/roster.ts verified manually.
 The night -1/0/+1 attack shift is per slot (Jesper: keep), visible in "Tonight's duel".

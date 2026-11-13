@@ -58,8 +58,11 @@ v3 branch work did nothing. Season 2 runs the launch roster. v2 (branch wt/v2, m
 builds) now deploys Sun 2026-11-15 22:40 after season 2's final round, notes post Mon 2026-11-16 06:10
 (patch-2.1.json, retitled "Season 3"). All WRAD2 tasks now fire into one Claude session that has push
 access: daily ops 09:41, v2 deploy, notes, v3 branch work Tue 11-17, reset review + recap Sat 11-21.
-The monthly review (3rd of the month) still starts a fresh session and will hit the same wall: recreate
-it from a session with repo access. Rounds were unaffected: pg_cron scored season 1's finale on 11-08;
+Re-tested 2026-11-13 after Jesper widened GitHub access: a fresh session still cannot attach the repo
+(its own permission check refuses add_repo when no person started it), so every WRAD2 task, incl. the
+monthly review, is bound to the one session with access. v2 launch posts: teaser Sat 11-14 12:07
+(v2-teaser-sat.json), teaser Sun 11-15 17:13 (v2-teaser-sun.json), patch notes Mon 06:10, first-duel
+reminder with the live board count Mon 18:07. Season with no points now gets no crown (eb379f0). Rounds were unaffected: pg_cron scored season 1's finale on 11-08;
 season 2 has had a single board all week, so no duels.
 
 **Jesper away ~2026-11-07 to 2026-11-22 (his decision 2026-11-07):** roster v2 stays live until he

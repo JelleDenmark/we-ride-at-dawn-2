@@ -51,6 +51,14 @@ swarm -1 wave), fights ~45% shorter (9 vs 16 rounds). Diversity not better yet: 
 budget 150, bruiser 49% at 400. Value is the design space (taunt/sniper/cleave, random targets
 could replace the -1/0/+1 night shift).
 
+**v2 launch runs from Supabase (2026-11-13):** Claude's timed wake-ups did not fire in two tests, so
+the launch steps are pg_cron one-shot jobs (supabase/migrations/2026-11-13-v2-launch-pg-cron.sql) that
+start .github/workflows/v2-launch.yml: teasers Sat 12:07 / Sun 17:13, deploy Sun 22:40 (+ retry 23:40),
+patch notes Mon 06:10, first-duel reminder Mon 18:07 (Copenhagen). Each step runs once at most (post
+markers in scripts/discord/sent/, deploy is a no-op once v2 is live). The Claude tasks for the same
+steps call the same workflow as a backup. Any later Claude-only scheduled task may not fire: don't
+rely on one for anything that must happen.
+
 **2026-11-13: roster v2 slipped a week.** The scheduled tasks created 2026-11-05/07 started fresh
 sessions with no write access to this repo (no add_repo, GitHub 403 on push and workflow runs), so the
 2026-11-08 deploy stopped and the 2026-11-09 patch notes correctly did not post; the daily checks and the

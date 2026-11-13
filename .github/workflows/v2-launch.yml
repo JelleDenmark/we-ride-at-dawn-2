@@ -1,0 +1,133 @@
+name: Roster v2 launch
+
+# Launch steps for roster v2 (season 3, 2026-11-16), started by Supabase pg_cron
+# one-shot jobs (supabase/migrations/2026-11-13-v2-launch-pg-cron.sql). Claude's
+# own scheduled wake-ups proved unreliable, so the launch does not depend on them.
+#
+#   step=post   file=<payload>  post scripts/discord/<payload> to #wrad, once
+#                               (a marker in scripts/discord/sent/ blocks repeats)
+#   step=selftest               check push, Supabase read and workflow start
+#                               permissions without changing anything
+#   step=deploy                 after season 2's final round has closed, merge
+#                               wt/v2 into master, test, build, push master and
+#                               dev, start the Pages deploy (no-op if v2 is live)
+#
+# Safe to run by hand and to run twice.
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'post or deploy'
+        required: true
+      file:
+        description: 'payload under scripts/discord/ (step=post)'
+        required: false
+        default: ''
+      require_v2:
+        description: 'post only if roster v2 is live on master (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: v2-launch
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Git identity
+        run: |
+          git config user.name "wrad2-launch"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Self-test
+        if: inputs.step == 'selftest'
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ -n "$DISCORD_BOT_TOKEN" ] && echo "PASS discord token present"
+          curl -sSf "https://wvrllhiktnkvbpclmrpq.supabase.co/rest/v1/league_rounds?select=round_id,closed_at&order=round_id.desc&limit=1" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" && echo && echo "PASS supabase read"
+          git push -q origin HEAD:refs/heads/launch-selftest && git push -q origin --delete launch-selftest && echo "PASS push"
+          gh workflow view deploy.yml >/dev/null && echo "PASS workflow access"
+
+      - name: Post to Discord (once)
+        if: inputs.step == 'post'
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          FILE: ${{ inputs.file }}
+          REQUIRE_V2: ${{ inputs.require_v2 }}
+        run: |
+          set -euo pipefail
+          case "$FILE" in ''|*/*|*..*) echo "bad file name '$FILE'"; exit 1;; esac
+          src="scripts/discord/$FILE"; marker="scripts/discord/sent/$FILE"
+          [ -f "$src" ] || { echo "no payload $src"; exit 1; }
+          if [ -f "$marker" ]; then echo "Already posted ($(cat "$marker")). Nothing to do."; exit 0; fi
+          if [ "$REQUIRE_V2" = "true" ] && ! grep -q "rot-chemist" packages/core/src/data/units.ts; then
+            echo "Roster v2 is not live on master. Not posting."; exit 1
+          fi
+          python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$src"
+          code=$(curl -sS -o resp.txt -w '%{http_code}' -X POST \
+            "https://discord.com/api/v10/channels/1524165668004560896/messages" \
+            -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: DiscordBot (https://github.com/JelleDenmark/we-ride-at-dawn-2, 1.0)" \
+            --data-binary "@$src")
+          echo "HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ] || { cat resp.txt; exit 1; }
+          mkdir -p scripts/discord/sent
+          date -u +%FT%TZ > "$marker"
+          git add "$marker"
+          git commit -m "Posted $FILE to #wrad"
+          for i in 1 2 3; do git pull --rebase -q origin master && git push -q origin HEAD:master && break; sleep 5; done
+
+      - name: Deploy roster v2
+        if: inputs.step == 'deploy'
+        working-directory: .
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if grep -q "rot-chemist" packages/core/src/data/units.ts; then
+            echo "Roster v2 is already live on master. Nothing to do."; exit 0
+          fi
+          npm ci
+          round_closed() {
+            curl -sS "https://wvrllhiktnkvbpclmrpq.supabase.co/rest/v1/league_rounds?round_id=eq.2026-11-09%232026-11-15&select=closed_at" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" | grep -q '"closed_at":"'
+          }
+          if ! round_closed; then
+            echo "Season 2's final round is not closed yet. Running it now."
+            (cd packages/core && npm run league:round -- --scheduled)
+          fi
+          round_closed || { echo "Final round still not closed. Not deploying."; exit 1; }
+          echo "Final round 2026-11-09#2026-11-15 is closed."
+          git fetch -q origin wt/v2
+          git merge --no-edit origin/wt/v2
+          grep -q "rot-chemist" packages/core/src/data/units.ts || { echo "merge did not bring roster v2"; exit 1; }
+          if grep -q "dawn-runt" packages/core/src/data/units.ts; then echo "old roster still present"; exit 1; fi
+          npm ci
+          npm test -w @wrad/core
+          npm run build -w @wrad/app
+          git push -q origin HEAD:master
+          git push -q origin HEAD:dev
+          # Pushes made with GITHUB_TOKEN do not start other workflows: start the deploy.
+          gh workflow run deploy.yml --ref master
+          echo "Roster v2 merged and pushed; Pages deploy started."

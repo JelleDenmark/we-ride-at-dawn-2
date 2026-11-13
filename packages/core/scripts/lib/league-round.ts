@@ -97,6 +97,9 @@ export function standingsMessage(rideDate: string, rows: ResultRow[]): string {
 
 export function championMessage(champion: { name: string; points: number } | undefined): string {
   if (!champion) return 'The week ends. Nobody rode. The crown rots.';
+  // No points anywhere means no duel was ever fought (a lone board scores 0):
+  // no crown for riding alone.
+  if (champion.points <= 0) return 'The week ends without a single duel. No crown this time.';
   return `**The week is done. ${champion.name} takes the crown with ${champion.points} pts.** The gutters bow. Monday, we start again.`;
 }
 

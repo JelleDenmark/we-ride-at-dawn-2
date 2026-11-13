@@ -93,6 +93,14 @@ describe('buildResults health_diff', () => {
   });
 });
 
+describe('championMessage', () => {
+  it('crowns a rider with points, but nobody when no duel was fought', () => {
+    expect(championMessage({ name: 'A', points: 9 })).toContain('A takes the crown with 9 pts');
+    expect(championMessage({ name: 'Lone', points: 0 })).not.toContain('Lone');
+    expect(championMessage(undefined)).toContain('Nobody rode');
+  });
+});
+
 describe('scheduled round window', () => {
   it('runs from 21:30 until the 06:00 rollover, Copenhagen time, winter and summer', async () => {
     const { inRoundWindow } = await import('../scripts/lib/league-round');

@@ -103,6 +103,7 @@ revoke all on function public.league_submit_board(text, text, text, jsonb, int) 
 grant execute on function public.league_submit_board(text, text, text, jsonb, int) to anon, authenticated;
 
 -- ---------------------------------------------------------------------
+-- Superseded by 2026-11-07-league-pg-cron.sql (use that one).
 -- Optional: trigger the nightly round from Postgres (more reliable than a
 -- GitHub schedule). Needs pg_cron + pg_net and a GitHub token (actions:write)
 -- stored as vault secret 'gh_dispatch_token'. Uncomment and edit OWNER/REPO.

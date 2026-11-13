@@ -13,7 +13,7 @@ import { runRound, inRoundWindow } from './lib/league-round';
 const args = process.argv.slice(2);
 const dry = args.some((a) => a === '--dry' || a === 'dry');
 if (args.includes('--scheduled') && !inRoundWindow(new Date())) {
-  console.log('Outside the 21:30-24:00 Copenhagen window, skipping this scheduled run.');
+  console.log('Outside the 21:30-06:00 Copenhagen window, skipping this scheduled run.');
   process.exit(0);
 }
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -77,13 +77,33 @@ describe('league round', () => {
   });
 });
 
+describe('buildResults health_diff', () => {
+  it('stores a whole number for the int column, keeping the exact-value rank', () => {
+    const rows = [
+      { player_id: 'a', name: 'A', board: { units: [] }, cleared_at: null },
+      { player_id: 'b', name: 'B', board: { units: [] }, cleared_at: null },
+    ] as any;
+    const standings = [
+      { id: 'a', points: 3, wins: 1, draws: 0, losses: 0, healthDiff: 434.8571428571429 },
+      { id: 'b', points: 0, wins: 0, draws: 0, losses: 1, healthDiff: -434.8571428571429 },
+    ];
+    const res = buildResults('s#d', 's', rows, standings);
+    expect(res.map((r) => r.health_diff)).toEqual([435, -435]);
+    expect(res.every((r) => Number.isInteger(r.health_diff))).toBe(true);
+  });
+});
+
 describe('scheduled round window', () => {
-  it('opens at 21:30 Copenhagen time in winter and in summer', async () => {
+  it('runs from 21:30 until the 06:00 rollover, Copenhagen time, winter and summer', async () => {
     const { inRoundWindow } = await import('../scripts/lib/league-round');
     expect(inRoundWindow(new Date('2026-11-04T20:35:00Z'))).toBe(true); // 21:35 CET
     expect(inRoundWindow(new Date('2026-11-04T19:50:00Z'))).toBe(false); // 20:50 CET
     expect(inRoundWindow(new Date('2026-07-04T19:35:00Z'))).toBe(true); // 21:35 CEST
     expect(inRoundWindow(new Date('2026-07-04T19:10:00Z'))).toBe(false); // 21:10 CEST
-    expect(inRoundWindow(new Date('2026-07-04T22:05:00Z'))).toBe(false); // 00:05 next day
+    expect(inRoundWindow(new Date('2026-07-04T22:05:00Z'))).toBe(true); // 00:05 next day, same ride date
+    expect(inRoundWindow(new Date('2026-11-07T00:23:00Z'))).toBe(true); // 01:23 CET, when GitHub actually ran
+    expect(inRoundWindow(new Date('2026-11-07T04:59:00Z'))).toBe(true); // 05:59 CET, last minute
+    expect(inRoundWindow(new Date('2026-11-07T05:00:00Z'))).toBe(false); // 06:00 CET, new ride date
+    expect(inRoundWindow(new Date('2026-07-04T04:00:00Z'))).toBe(false); // 06:00 CEST
   });
 });

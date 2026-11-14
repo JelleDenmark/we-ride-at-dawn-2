@@ -69,6 +69,13 @@ not walls: loosen them when it clearly helps, and say so.
   a reset, with patch notes in #wrad (`scripts/discord/*.json` + the "Discord
   post" workflow). Deploy only AFTER Sunday's final round has closed: the new
   roster's board validation would drop old-roster boards from a late round.
+- Every new rat, summon or enemy ships with art: `packages/app/src/replay/art/<id>.svg`,
+  64x64 viewBox, hand-drawn in the existing style (flat fills, dark #1a222b outlines,
+  the sewer palette; compare with 3-4 neighbours in a screenshot on a dark background
+  before committing). It is the shop/board portrait and the replay sprite. Make the art
+  part of the design, not an afterthought: it should show what the rat does (Rot-Chemist's
+  flask, Sluice-Bulwark's gate shield). `packages/core/test/art.test.ts` fails without it.
+  Relics have no portraits.
 - Saved builds and stored league boards can contain removed rats:
   `packages/app/src/roster.ts` sanitizes them (add retired ids + costs there).
 - Update the design page (Claude Docs, https://claude.ai/artifact/L64C6UcKBkCQ9obFk2pSyQ)

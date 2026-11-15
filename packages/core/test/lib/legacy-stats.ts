@@ -16,8 +16,7 @@ const stats: Record<string, { attack: number; health: number; effect?: Partial<E
   'md-rattyfock': { attack: 2, health: 6, effect: { attack: 1, health: 1 } as Partial<Effect> },
   'press-kin': { attack: 2, health: 4, effect: { attack: 2, health: 2 } as Partial<Effect> },
   'ward-weaver': { attack: 1, health: 3 },
-  'dawn-runt': { attack: 1, health: 2 },
-  'dusk-runt': { attack: 1, health: 2, effect: { attack: 0, health: 2 } as Partial<Effect> },
+  'rot-chemist': { attack: 1, health: 3, effect: { amount: 1 } as Partial<Effect> },
 };
 
 for (const [id, s] of Object.entries(stats)) {

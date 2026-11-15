@@ -8,7 +8,6 @@
     "test": "npm run test -w @wrad/core",
     "dev": "npm run dev -w @wrad/app",
     "build": "npm run build -w @wrad/app",
-    "balance": "npm run balance -w @wrad/core",
-    "snowball": "npm run snowball -w @wrad/core"
+    "duel-sim": "npm run duel-sim -w @wrad/core"
   }
 }

@@ -1,5 +1,6 @@
 import type { BuildState, Lineup, BattleResult } from '@wrad/core';
 import { CHANNEL } from './env';
+import { sanitizeBuild, lineupIsCurrent } from './roster';
 
 // Channel-namespaced so dev experiments never clobber prod state on the
 // same origin.
@@ -28,7 +29,7 @@ export function savePending(build: BuildState): void {
 export function loadPending(): BuildState | null {
   try {
     const raw = localStorage.getItem(`${NS}:pending`);
-    return raw ? migrateBuild(JSON.parse(raw) as BuildState) : null;
+    return raw ? sanitizeBuild(migrateBuild(JSON.parse(raw) as BuildState)) : null;
   } catch {
     return null;
   }
@@ -53,7 +54,10 @@ export function saveLastRide(ride: LastRide): void {
 export function loadLastRide(): LastRide | null {
   try {
     const raw = localStorage.getItem(`${NS}:lastride`);
-    return raw ? (JSON.parse(raw) as LastRide) : null;
+    if (!raw) return null;
+    const ride = JSON.parse(raw) as LastRide;
+    // A ride from an older roster can't be re-simulated; forget it.
+    return lineupIsCurrent(ride.lineup) ? ride : null;
   } catch {
     return null;
   }

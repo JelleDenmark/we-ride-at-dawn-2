@@ -55,7 +55,8 @@ describe('unit abilities', () => {
     expect(buffs[0].newHealth).toBe(3);
   });
 
-  it('t1 Bone-Priest revives the first fallen ally at 1 health', () => {
+  it('Bone-Priest raises the first fallen ally at half its max health, rounded up', () => {
+    // Dire-Rat is pinned at 4/5, so ceil(5 * 0.5) = 3.
     const { events } = simulate(
       lineup({ defId: 'dire-rat' }, { defId: 'bone-priest', tier: 1 }),
       gauntletOf([dummy(2, 50)])
@@ -63,40 +64,24 @@ describe('unit abilities', () => {
     const revives = ofType(events, 'revive');
     expect(revives.length).toBe(1);
     expect(revives[0].unit.defId).toBe('dire-rat');
-    expect(revives[0].unit.health).toBe(1);
-  });
-
-  it('t2 Bone-Priest revives the first fallen ally at 2 health', () => {
-    // MD Rattyfock at tier 2 has maxHealth 6*3=18, comfortably above the
-    // t2 revive value of 2, so the result isn't accidentally cap-limited.
-    const { events } = simulate(
-      lineup({ defId: 'md-rattyfock', tier: 2 }, { defId: 'bone-priest', tier: 2 }),
-      gauntletOf([dummy(50, 500)])
-    );
-    const revives = ofType(events, 'revive');
-    expect(revives.length).toBe(1);
-    expect(revives[0].unit.defId).toBe('md-rattyfock');
-    expect(revives[0].unit.health).toBe(2);
-  });
-
-  it('t3 Bone-Priest revives the first fallen ally at 3 health', () => {
-    // MD Rattyfock at tier 3 has maxHealth 6*9=54, comfortably above the
-    // t3 revive value of 3, so the result isn't accidentally cap-limited.
-    const { events } = simulate(
-      lineup({ defId: 'md-rattyfock', tier: 3 }, { defId: 'bone-priest', tier: 3 }),
-      gauntletOf([dummy(50, 500)])
-    );
-    const revives = ofType(events, 'revive');
-    expect(revives.length).toBe(1);
-    expect(revives[0].unit.defId).toBe('md-rattyfock');
     expect(revives[0].unit.health).toBe(3);
   });
 
-  it('t3 Bone-Priest revive is capped at the corpse\'s own maxHealth', () => {
-    // Gutter-Runt is a 1-health t1 corpse; the 1/2/3 table must not
-    // overheal it past its own ceiling just because the reviver is t3.
-    // The dummy needs enough health to survive long enough for the tier-3
-    // Bone-Priest (attack 9, health 36) to actually die and trigger revive.
+  it('revive health is a share of the corpse\'s own max health at every tier', () => {
+    // Rattyfock is pinned at 6 health: tier 2 -> 18 max -> 9, tier 3 -> 54 max -> 27.
+    for (const [tier, expected] of [[2, 9], [3, 27]] as const) {
+      const { events } = simulate(
+        lineup({ defId: 'md-rattyfock', tier }, { defId: 'bone-priest', tier }),
+        gauntletOf([dummy(50, 5000)])
+      );
+      const revives = ofType(events, 'revive');
+      expect(revives.length).toBe(1);
+      expect(revives[0].unit.defId).toBe('md-rattyfock');
+      expect(revives[0].unit.health).toBe(expected);
+    }
+  });
+
+  it('a one-health corpse comes back at 1, never 0 and never above its max', () => {
     const { events } = simulate(
       lineup({ defId: 'gutter-runt', tier: 1 }, { defId: 'bone-priest', tier: 3 }),
       gauntletOf([dummy(2, 500)])
@@ -105,6 +90,23 @@ describe('unit abilities', () => {
     expect(revives.length).toBe(1);
     expect(revives[0].unit.defId).toBe('gutter-runt');
     expect(revives[0].unit.health).toBe(1);
+  });
+
+  it('a revived Brood-Mother comes back hollow: she does not birth pups a second time', () => {
+    // Front: Brood-Mother dies (3 pups), the priest raises her hollow. When she
+    // dies again there must be no second litter.
+    const { events } = simulate(
+      lineup({ defId: 'brood-mother' }, { defId: 'bone-priest' }),
+      gauntletOf([dummy(2, 60)])
+    );
+    const revives = ofType(events, 'revive');
+    expect(revives.length).toBe(1);
+    expect(revives[0].unit.defId).toBe('brood-mother');
+    const motherId = revives[0].unit.instanceId;
+    const deathsOfMother = events.filter((e) => e.type === 'death' && e.unitId === motherId).length;
+    expect(deathsOfMother).toBe(2);
+    // Exactly one litter of 2 (pinned count): from her first death only.
+    expect(ofType(events, 'summon').length).toBe(2);
   });
 
   it('a lone reviver cannot revive itself (no immortality exploit)', () => {
@@ -363,40 +365,6 @@ describe('relics', () => {
     }
   });
 
-});
-
-describe('Dawn-Runt / Dusk-Runt (no time-of-day gate)', () => {
-  it('Dawn-Runt grants +1 attack to the whole horde at any time of day', () => {
-    for (const timeOfDay of ['beforeNoon', 'afterNoon', undefined] as const) {
-      const { events } = simulate(
-        { units: [{ defId: 'dawn-runt' }, { defId: 'gutter-runt' }], timeOfDay },
-        gauntletOf([dummy(0, 100)])
-      );
-      const buffs = ofType(events, 'buff');
-      expect(buffs.length).toBe(2);
-      expect(buffs.every((b) => b.attack === 1 && b.health === 0)).toBe(true);
-    }
-  });
-
-  it('Dusk-Runt grants +2 health to the whole horde at any time of day', () => {
-    for (const timeOfDay of ['beforeNoon', 'afterNoon', undefined] as const) {
-      const { events } = simulate(
-        { units: [{ defId: 'dusk-runt' }, { defId: 'gutter-runt' }], timeOfDay },
-        gauntletOf([dummy(0, 100)])
-      );
-      const buffs = ofType(events, 'buff');
-      expect(buffs.length).toBe(2);
-      expect(buffs.every((b) => b.attack === 0 && b.health === 2)).toBe(true);
-    }
-  });
-
-  it('fires once per battle, not once per wave (compounding-law check)', () => {
-    const { events } = simulate(
-      { units: [{ defId: 'dawn-runt' }, { defId: 'gutter-runt' }] },
-      gauntletOf([dummy(0, 1)], [dummy(0, 1)], [dummy(0, 1)])
-    );
-    expect(ofType(events, 'buff')).toHaveLength(2);
-  });
 });
 
 describe('wave carry-over', () => {

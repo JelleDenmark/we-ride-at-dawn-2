@@ -686,7 +686,7 @@ describe('tiers in battle', () => {
     waves: [{ units: [{ id: 'd', name: 'D', attack: 1, health: 50, cost: 0 }] }],
   };
 
-  it('tier multiplies attack and health by 3^(tier-1) (issue #22), and scales ability magnitude the same way (issue #58)', () => {
+  it('tier multiplies attack and health by 3^(tier-1) (issue #22), and scales ability magnitude by tier (1/2/3)', () => {
     const { events } = simulate(
       { units: [{ defId: 'gnawer', tier: 2 }, { defId: 'gutter-runt' }] },
       gauntlet
@@ -696,12 +696,10 @@ describe('tiers in battle', () => {
     expect(start.type === 'battleStart' && start.horde[0].attack).toBe(9);
     expect(start.type === 'battleStart' && start.horde[0].health).toBe(3);
     expect(start.type === 'battleStart' && start.horde[0].tier).toBe(2);
-    // Ability magnitude now scales via tierAttackMultiplier too (issue #58),
-    // not a flat `* tier` — Gnawer's buffBehind fires once per instance
-    // (`faint`), so the steeper curve can't compound across the 45-wave
-    // battle. base attack 2 * tierAttackMultiplier(2)=3 => 6.
+    // Ability magnitude scales linearly with tier (1/2/3), not 1/3/9: Gnawer's
+    // pinned buffBehind is +2 attack, so tier 2 gives +4.
     const buffEvent = events.find((e) => e.type === 'buff')!;
-    expect(buffEvent.type === 'buff' && buffEvent.attack).toBe(6);
+    expect(buffEvent.type === 'buff' && buffEvent.attack).toBe(4);
   });
 
   it('unitStats (shop preview) matches the sim: attack and health both x3^(tier-1)', () => {
@@ -1364,7 +1362,7 @@ describe('buyable horde slots (issue #9)', () => {
 describe('season rotation', () => {
   const ids = (season: string) => seasonUnitPool(season).map((u) => u.id);
 
-  it('offers exactly SEASON_UNIT_COUNT of the 14 units, deterministically', () => {
+  it('offers exactly SEASON_UNIT_COUNT of the 13 units, deterministically', () => {
     expect(ids('2026-07-06')).toHaveLength(SEASON_UNIT_COUNT);
     expect(ids('2026-07-06')).toEqual(ids('2026-07-06'));
   });
@@ -1372,9 +1370,9 @@ describe('season rotation', () => {
   it('always keeps one unit of every strategy, and differs between seasons', () => {
     const groups = [
       ['rat-piper', 'brood-mother'],
-      ['plague-bearer', 'draughtsman-moe'],
+      ['plague-bearer', 'draughtsman-moe', 'rot-chemist'],
       ['gnawer', 'corpse-glutton', 'bone-priest'],
-      ['dire-rat', 'md-rattyfock'],
+      ['dire-rat', 'md-rattyfock', 'press-kin'],
     ];
     const seen = new Set<string>();
     for (let w = 0; w < 30; w++) {
@@ -1398,7 +1396,7 @@ describe('season rotation', () => {
   it('no shop unit carries a day gate or a removed id', () => {
     expect(UNIT_DEFS['warren-warden']).toBeUndefined();
     expect(UNIT_DEFS['blight-witch']).toBeUndefined();
-    expect(Object.values(UNIT_DEFS).filter((u) => u.cost > 0)).toHaveLength(14);
+    expect(Object.values(UNIT_DEFS).filter((u) => u.cost > 0)).toHaveLength(13);
     expect(Object.keys(RELIC_DEFS)).toHaveLength(9);
   });
 });

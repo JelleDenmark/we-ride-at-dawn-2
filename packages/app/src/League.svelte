@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { applyNightVariation, simulateDuel, currentRideDate, type Lineup } from '@wrad/core';
+  import { knownLineup, lineupIsCurrent } from './roster';
   import BoardView from './BoardView.svelte';
   import { ReplayPlayer } from './replay/ReplayPlayer';
   import {
@@ -157,6 +158,14 @@
     }
   });
 
+  // Boards saved under an older roster can't be re-simulated.
+  const duelPlayable = $derived.by(() => {
+    const rs = round?.results ?? [];
+    const a = rs.find((r) => r.player_id === pickA);
+    const b = rs.find((r) => r.player_id === pickB);
+    return !!a && !!b && lineupIsCurrent(a.board) && lineupIsCurrent(b.board);
+  });
+
   let duelOpen = $state(false);
   let duelStage: HTMLDivElement | undefined = $state();
   let duelPlayer: ReplayPlayer | undefined;
@@ -170,7 +179,7 @@
     const [x, y] = [pickA, pickB].sort();
     const ra = round.results.find((r) => r.player_id === x);
     const rb = round.results.find((r) => r.player_id === y);
-    if (!ra || !rb) return;
+    if (!ra || !rb || !duelPlayable) return;
     const seed = round.nightSeed;
     const { events, result } = simulateDuel(
       applyNightVariation(ra.board, seed, ra.player_id),
@@ -248,7 +257,7 @@
       <span class="count">22:00 in <strong>{fmt(secsToRound)}</strong></span>
     </div>
     <p class="sub">Your board as it will fight. Tonight's seed shifts each rat's attack by -1, 0 or +1.</p>
-    <BoardView board={tonightBoard} />
+    <BoardView board={knownLineup(tonightBoard)} />
     {#if lineup.units.length === 0}
       <p class="warn">Empty board. You score nothing tonight. Recruit below.</p>
     {:else if !playerId}
@@ -283,7 +292,8 @@
             {#each round.results as r}<option value={r.player_id}>{r.name}</option>{/each}
           </select>
         </div>
-        <button class="watch" onclick={() => void watchDuel()} disabled={pickA === pickB}>▶ Watch the duel</button>
+        <button class="watch" onclick={() => void watchDuel()} disabled={pickA === pickB || !duelPlayable}>▶ Watch the duel</button>
+        {#if pickA !== pickB && !duelPlayable}<p class="sub">Board from an older roster. No replay.</p>{/if}
       {/if}
     </div>
   {/if}
@@ -295,7 +305,8 @@
       {#if open}
         <div class="sheet-name">{open.name}</div>
         <p class="sub">{open.round ? `Board as it fought on ${open.round}.` : 'No board on record yet.'}</p>
-        <BoardView board={open.board} />
+        {#if !lineupIsCurrent(open.board)}<p class="sub">Part of this board is from an older roster.</p>{/if}
+        <BoardView board={knownLineup(open.board)} />
         <button class="small close" onclick={() => (open = null)}>Close</button>
       {:else}
         <p class="sub">Opening the board…</p>

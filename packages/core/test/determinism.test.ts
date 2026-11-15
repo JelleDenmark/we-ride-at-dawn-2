@@ -170,7 +170,7 @@ describe('clock isolation (issue #12)', () => {
     // the same explicit lineup+gauntlet input produces the same output
     // however "now" happens to sit relative to noon when the test runs.
     const g = gauntletFor('2026-07-06', 3);
-    const lineupBefore = { units: [{ defId: 'dawn-runt' }], timeOfDay: 'beforeNoon' as const };
+    const lineupBefore = { units: [{ defId: 'plague-bearer' }], timeOfDay: 'beforeNoon' as const };
     const a = simulate(lineupBefore, g);
     const b = simulate(lineupBefore, g);
     expect(JSON.stringify(a.events)).toBe(JSON.stringify(b.events));

@@ -12,15 +12,18 @@
  * every raid (a player who raids that often is checking the shop).
  *
  * Run:  npx tsx scripts/economy.ts   (from packages/core)
- * Env:  SEASONS (default 12), RAIDS (comma list, default 6,14,24)
+ * Env:  SEASONS (default 12), RAIDS (comma list, default 6,14,24),
+ *       RUNTS (Gutter Runt opener: how many to buy early as an economy start, default 2;
+ *       0 = never buys one — run both to see what scavenging is worth),
+ *       RUNT_DAYS (default 2: the opener runts are sold once that day is over, freeing their seats)
  */
 import { generateGauntlet } from '../src/gauntlet';
 import { simulate, BOARD_CAP } from '../src/sim';
 import { RELIC_DEFS } from '../src/data/relics';
 import { UNIT_DEFS } from '../src/data/units';
 import {
-  newBuild, advanceAfterDawn, interestFor, scrapForDepth, recordDepth, lineupFromBuild,
-  buyUnit, sellBenchUnit, buyRelic, buyBoardSlot, rerollShop, autoRerollShop, isShopDead, effectiveBoardCap,
+  newBuild, advanceAfterDawn, interestFor, raidScrap, recordDepth, lineupFromBuild,
+  buyUnit, sellUnit, sellBenchUnit, buyRelic, buyBoardSlot, rerollShop, autoRerollShop, isShopDead, effectiveBoardCap,
   nextSlotPrice, MAX_TIER, SEASON_DAYS, DAILY_SCRAP, MILESTONES, INCOME_CAP, INCOME_CAP_DEPTH,
   type BuildState,
 } from '../src/shop';
@@ -29,6 +32,9 @@ const RELICS_PER_RAT = 2;
 const TEAM_RELICS = 1;
 const RESERVE = 12; // scrap kept in hand before a reroll
 const FOCUS = 2; // distinct unit species the bot builds around
+const RUNTS = Number(process.env.RUNTS ?? 2); // Gutter Runt economy opener (t1-equivalents held)
+const RUNT = 'gutter-runt';
+const RUNT_DAYS = Number(process.env.RUNT_DAYS ?? 2); // runts are sold at the start of the day after this
 let focus = new Set<string>();
 
 const unitRelics = (u: { relicIds: string[] }) => u.relicIds.filter((id) => RELIC_DEFS[id]?.scope === 'unit').length;
@@ -77,7 +83,10 @@ function step(s: BuildState): BuildState | null {
   s.shop.slots.forEach((slot, i) => {
     if (slot.kind !== 'unit') return;
     const h = held.get(slot.defId) ?? 0;
-    if (!focus.has(slot.defId) && focus.size >= FOCUS) return;
+    const runtsHeld = [...s.board, ...s.bench].filter((u) => u.defId === RUNT).reduce((a, u) => a + 3 ** (u.tier - 1), 0);
+    const opener = slot.defId === RUNT && runtsHeld < RUNTS;
+    if (slot.defId === RUNT && !opener) return; // no runts beyond the opener
+    if (!opener && !focus.has(slot.defId) && focus.size >= FOCUS) return;
     const probe = buyUnit(s, i);
     if (!probe.ok) return;
     picks.push({ i, held: h, cost: s.scrap - probe.state.scrap });
@@ -87,7 +96,7 @@ function step(s: BuildState): BuildState | null {
     const r = buyUnit(s, picks[0].i);
     if (r.ok) {
       const slot = s.shop.slots[picks[0].i];
-      if (slot.kind === 'unit') focus.add(slot.defId);
+      if (slot.kind === 'unit' && slot.defId !== RUNT) focus.add(slot.defId);
       return r.state;
     }
   }
@@ -119,7 +128,7 @@ function addDays(date: string, n: number): string {
   return new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
-interface WeekResult { finishedDay: number | null; depthByDay: number[]; t3ByDay: number[]; best: number; scrapSpent: number }
+interface WeekResult { raidIncome: number[]; finishedDay: number | null; depthByDay: number[]; t3ByDay: number[]; best: number; scrapSpent: number }
 
 function playWeek(monday: string, raidsPerDay: number): WeekResult {
   let s = newBuild(monday, 1);
@@ -127,8 +136,14 @@ function playWeek(monday: string, raidsPerDay: number): WeekResult {
   let finishedDay: number | null = null;
   const depthByDay: number[] = [];
   const t3ByDay: number[] = [];
+  const raidIncome: number[] = [];
   let guard = 0;
   for (let day = 1; day <= SEASON_DAYS; day++) {
+    if (day > RUNT_DAYS) {
+      for (let i = s.board.length - 1; i >= 0; i--) if (s.board[i].defId === RUNT) s = ((r) => (r.ok ? r.state : s))(sellUnit(s, i));
+      for (let i = s.bench.length - 1; i >= 0; i--) if (s.bench[i].defId === RUNT) s = ((r) => (r.ok ? r.state : s))(sellBenchUnit(s, i));
+    }
+    let income = 0;
     const gaunt = generateGauntlet(s.date, s.day);
     let lastDepth = 0;
     for (let r = 0; r < raidsPerDay; r++) {
@@ -139,10 +154,13 @@ function playWeek(monday: string, raidsPerDay: number): WeekResult {
       }
       if (finishedDay === null && finished(s)) finishedDay = day;
       lastDepth = s.board.length > 0 ? simulate(lineupFromBuild(s), gaunt).result.wavesCleared : 0;
-      s = { ...s, scrap: s.scrap + scrapForDepth(lastDepth) };
+      const pay = raidScrap(lastDepth, s.board);
+      income += pay;
+      s = { ...s, scrap: s.scrap + pay };
       s = recordDepth(s, lastDepth).state;
     }
     depthByDay.push(lastDepth);
+    raidIncome.push(income);
     t3ByDay.push(s.board.filter((u) => u.tier >= MAX_TIER).length);
     if (day < SEASON_DAYS) {
       const interest = interestFor(s.scrap);
@@ -150,7 +168,7 @@ function playWeek(monday: string, raidsPerDay: number): WeekResult {
       s.scrap += interest;
     }
   }
-  return { finishedDay, depthByDay, t3ByDay, best: s.bestDepth, scrapSpent: 0 };
+  return { raidIncome, finishedDay, depthByDay, t3ByDay, best: s.bestDepth, scrapSpent: 0 };
 }
 
 const SEASONS = Number(process.env.SEASONS ?? 12);
@@ -158,7 +176,7 @@ const PROFILES = (process.env.RAIDS ?? '6,14,24').split(',').map(Number);
 const mondays = Array.from({ length: SEASONS }, (_, k) => addDays('2026-07-06', 7 * k));
 
 console.log(
-  `income ${INCOME_CAP}/raid at depth ${INCOME_CAP_DEPTH} · start scrap ${DAILY_SCRAP} · milestones ${MILESTONES.map((m) => `${m.depth}:${m.scrap}`).join(' ')} · ${SEASONS} seasons`
+  `gutter-runt opener ${RUNTS} · income ${INCOME_CAP}/raid at depth ${INCOME_CAP_DEPTH} · start scrap ${DAILY_SCRAP} · milestones ${MILESTONES.map((m) => `${m.depth}:${m.scrap}`).join(' ')} · ${SEASONS} seasons`
 );
 for (const raids of PROFILES) {
   const res = mondays.map((m) => playWeek(m, raids));
@@ -171,6 +189,7 @@ for (const raids of PROFILES) {
   console.log(`\n${raids} raids/day  finish-day median ${med === 99 ? 'never' : med}  earliest ${sorted[0] === 99 ? '-' : sorted[0]}`);
   console.log('  finished on day  ' + dist.map((n, i) => `d${i + 1}:${n}`).join(' ') + ` never:${never}`);
   console.log('  depth at end of day  ' + [0, 1, 2, 3, 4, 5, 6].map((d) => `d${d + 1}:${avg((r) => r.depthByDay, d).toFixed(1)}`).join(' '));
+  console.log('  raid scrap per day   ' + [0, 1, 2, 3, 4, 5, 6].map((d) => `d${d + 1}:${avg((r) => r.raidIncome, d).toFixed(0)}`).join(' '));
   console.log('  T3 rats at end of day ' + [0, 1, 2, 3, 4, 5, 6].map((d) => `d${d + 1}:${avg((r) => r.t3ByDay, d).toFixed(1)}`).join(' '));
   console.log(`  full clears: ${res.filter((r) => r.best >= 20).length}/${SEASONS}  avg best depth ${(res.reduce((a, r) => a + r.best, 0) / SEASONS).toFixed(1)}`);
 }

@@ -37,7 +37,7 @@ const ofType = <T extends BattleEvent['type']>(events: BattleEvent[], type: T) =
 // (which is what emitted the runaway 'buff' events in the Warren-Warden
 // incident) and is wired to `startOfBattle` — i.e. every unit where a
 // per-wave re-fire would silently compound a permanent stat forever.
-const BUFF_EFFECT_KINDS = ['buffBehind', 'buffAdjacent', 'teamBuff', 'gainStats'];
+const BUFF_EFFECT_KINDS = ['buffBehind', 'buffAdjacent', 'gainStats'];
 
 const startOfBattleBuffUnits = Object.values(UNIT_DEFS).filter(
   (u): u is UnitDef & { ability: NonNullable<UnitDef['ability']> } =>

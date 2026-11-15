@@ -51,6 +51,12 @@ swarm -1 wave), fights ~45% shorter (9 vs 16 rounds). Diversity not better yet: 
 budget 150, bruiser 49% at 400. Value is the design space (taunt/sniper/cleave, random targets
 could replace the -1/0/+1 night shift).
 
+**Roster v2 is LIVE as season 3 (from 2026-11-16).** Deployed 2026-11-15 22:40 Copenhagen by the
+Supabase-started v2-launch workflow, after season 2's final round closed (1 board, no duels): wt/v2
+merged into master (1a126a6), 214 tests passed, app built, master and dev pushed, Pages deploy green.
+Both teasers posted (Sat 12:07, Sun 17:13). Patch notes Mon 06:10, first-duel reminder Mon 18:07.
+To do: Design page still shows the launch roster; update it to v2.
+
 **v2 launch runs from Supabase (2026-11-13):** Claude's timed wake-ups did not fire in two tests, so
 the launch steps are pg_cron one-shot jobs (supabase/migrations/2026-11-13-v2-launch-pg-cron.sql) that
 start .github/workflows/v2-launch.yml: teasers Sat 12:07 / Sun 17:13, deploy Sun 22:40 (+ retry 23:40),

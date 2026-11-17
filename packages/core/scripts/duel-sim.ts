@@ -30,6 +30,13 @@ import './lib/combat-mode'; // COMBAT=bg switches the combat rules
 
 for (const kv of (process.env.SET ?? '').split(',').filter(Boolean)) {
   const [lhs, v] = kv.split('=');
+  if (lhs.endsWith('.taunt') || lhs.endsWith('.cleave') || lhs.endsWith('.targeting')) {
+    const [rid, f] = lhs.split('.');
+    const d = UNIT_DEFS[rid] as unknown as Record<string, unknown>;
+    if (!d) throw new Error(`SET: unknown rat ${rid}`);
+    d[f] = f === 'targeting' ? v : v === '1' || v === 'true';
+    continue;
+  }
   const [id, field, sub] = lhs.split('.');
   if (id === 'rules') { (RULES as Record<string, number>)[field] = Number(v); continue; }
   const def = UNIT_DEFS[id] as unknown as Record<string, unknown> & { ability?: { effect: Record<string, unknown> } };
@@ -38,6 +45,8 @@ for (const kv of (process.env.SET ?? '').split(',').filter(Boolean)) {
   else if (field in def) def[field] = Number(v);
   else if (def.ability && field in def.ability.effect) def.ability.effect[field] = Number(v);
   else if (field === 'damageReduction' || field === 'scavenge') def[field] = Number(v);
+  else if (field === 'taunt' || field === 'cleave') def[field] = v === '1' || v === 'true';
+  else if (field === 'targeting') def[field] = v;
   else throw new Error(`SET: ${id} has no field ${field}`);
 }
 

@@ -89,6 +89,7 @@ export {
   ENEMY_ATTACK_SCALE_PER_WAVE,
   enemyHealthScale,
   enemyAttackScale,
+  RULES,
   type BattleEvent,
   type BattleResult,
   type UnitView,

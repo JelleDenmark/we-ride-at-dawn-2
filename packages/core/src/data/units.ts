@@ -270,8 +270,9 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
     ability: { trigger: 'faint', effect: { kind: 'summon', unitId: 'pup', count: 3 } },
   },
   'corpse-glutton': {
-    id: 'corpse-glutton', name: 'Corpse-Glutton', attack: 2, health: 3, cost: 6,
-    desc: 'grows +1/+1 when an ally faints, up to 4 times a fight (scales ★)',
+    id: 'corpse-glutton', name: 'Corpse-Glutton', attack: 1, health: 3, cost: 6,
+    cleave: true,
+    desc: 'cleaver: its hits also strike both foes beside the target. Grows +1/+1 when an ally faints, up to 4 times a fight (scales ★)',
     ability: { trigger: 'allyFaint', effect: { kind: 'gainStats', attack: 1, health: 1, maxGains: 4 } },
   },
   'plague-bearer': {
@@ -281,7 +282,8 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
   },
   'draughtsman-moe': {
     id: 'draughtsman-moe', name: 'Draughtsman Moe', attack: 3, health: 4, cost: 8,
-    desc: 'start of each fight: poisons the hardest-hitting foe (scales ★)',
+    targeting: 'strongest',
+    desc: 'sniper: always hits the hardest-hitting foe, past any taunt. Start of each fight: poisons it (scales ★)',
     ability: { trigger: 'startOfWave', effect: { kind: 'poisonStrongest', stacks: 1 } },
   },
   'rot-chemist': {
@@ -291,7 +293,8 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
   },
   gnawer: {
     id: 'gnawer', name: 'Gnawer', attack: 3, health: 1, cost: 4,
-    desc: 'faint: the rat behind gets +3 attack (scales ★)',
+    targeting: 'weakest',
+    desc: 'sniper: always hits the weakest foe, past any taunt. Faint: the rat behind gets +3 attack (scales ★)',
     ability: { trigger: 'faint', effect: { kind: 'buffBehind', attack: 3, health: 0 } },
   },
   'bone-priest': {
@@ -316,7 +319,8 @@ export const UNIT_DEFS: Record<string, UnitDef> = {
   },
   'ward-weaver': {
     id: 'ward-weaver', name: 'Ward-Weaver', attack: 1, health: 4, cost: 7,
-    desc: 'start of each fight: blocks the front rat’s next hit (★3: two hits)',
+    taunt: true,
+    desc: 'taunt: foes must hit it first. Start of each fight: blocks the front rat’s next hit (★3: two hits)',
     ability: { trigger: 'startOfWave', effect: { kind: 'blockFrontHits' } },
   },
 };

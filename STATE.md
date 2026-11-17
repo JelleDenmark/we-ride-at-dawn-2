@@ -51,6 +51,11 @@ swarm -1 wave), fights ~45% shorter (9 vs 16 rounds). Diversity not better yet: 
 budget 150, bruiser 49% at 400. Value is the design space (taunt/sniper/cleave, random targets
 could replace the -1/0/+1 night shift).
 
+**Roster v3 review ready (2026-11-17):** branch wt/v3, docs/v3-review.md. Same 13 rats on the bg engine
+with targeting roles. Healthier matchups and fights half as long, but late boards still drift to bruiser and
+the replay cannot show targeting yet. Recommendation: rework, then ship at a reset after Jesper is back.
+v2's first round (2026-11-16) had 3 boards.
+
 **Roster v2 is LIVE as season 3 (from 2026-11-16).** Deployed 2026-11-15 22:40 Copenhagen by the
 Supabase-started v2-launch workflow, after season 2's final round closed (1 board, no duels): wt/v2
 merged into master (1a126a6), 214 tests passed, app built, master and dev pushed, Pages deploy green.

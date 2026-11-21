@@ -51,6 +51,41 @@ swarm -1 wave), fights ~45% shorter (9 vs 16 rounds). Diversity not better yet: 
 budget 150, bruiser 49% at 400. Value is the design space (taunt/sniper/cleave, random targets
 could replace the -1/0/+1 night shift).
 
+## While you were away (7-22 Nov) — recap for Jesper
+
+**Rounds.** Season 1: GitHub ran every scheduled round 4-5 h late, outside the scoring window, so
+Mon-Fri never scored; fixed (window to 06:00 + Supabase pg_cron trigger at 21:40), Sat/Sun scored.
+Season 2: one board all week, no duels. Season 3 (v2): 3 boards every night, all scored;
+Sugondeez Nutts won both duels all 5 nights so far.
+
+**Bugs fixed.** Round script wrote decimal health_diff into an int column (first 2+ board round
+failed to save). Champion post would crown a 0-point lone board. Sluice-Bulwark had no art (drawn;
+art test now requires art for every rat/enemy). CI runs the core tests on every push.
+
+**Roster v2 slipped a week.** Scheduled Claude sessions could not write to the repo (and timed
+wake-ups ran up to 2 h late), so the 8 Nov deploy never happened. Moved the launch to Supabase pg_cron
++ the v2-launch workflow: teasers Sat/Sun, deploy Sun 15 Nov 22:40, notes and first-duel reminder
+Mon 16 Nov all went out once, on time. v2 brought 3 boards back.
+
+**Balance changes.** None shipped.
+
+**v3.** Review on branch wt/v3 (docs/v3-review.md): same rats on the bg engine with targeting roles.
+Healthier matchups, fights half as long, replay can't show targeting yet. Recommendation: rework first.
+
+**Open questions for you (reset review 2026-11-21, no change shipped for 23 Nov):**
+1. Mono-Dire-Rat with relics. Sugondeez's board (7x Dire-Rat ★3 + Ward-Weaver ★3, 3 relics each:
+   Fat Tick, Gore-Cleaver, Marrow-Snap, Tail-Charm) beats same-value plague, swarm and mixed boards
+   18-20 of 20 nights (real-board replays). Dire-Rat armor 2->1 (★3: 6->3) lets plague, its designed
+   counter, win 20/20 but swarm/mixed still lose; health 4->3 flips mixed but not plague. The relic-free
+   duel-sim does not show Dire-Rat dominant, so armor x relics is the multiplier. Candidate: armor 2->1.
+   Not shipped: 3 players, unclear fix, and it would land on one player's board. Your call.
+2. Economy. Sugondeez cleared all 20 waves on day 2 (Tue 17 Nov); last season day 5; the sim expects
+   day 6-7. Others reached depth 14 and 6. One active player snowballs: early clear -> max scrap
+   every raid -> relics on everything. Levers: INCOME_CAP, enemy scaling, relic cost.
+3. Housekeeping: remove the WRAD2 scheduled tasks when back (daily check reminds from 24 Nov);
+   update the design page to v2; Claude's timed wake-ups are unreliable, keep anything that must
+   happen on Supabase pg_cron. The league-report workflow prints last round's boards + clear days.
+
 **Roster v3 review ready (2026-11-17):** branch wt/v3, docs/v3-review.md. Same 13 rats on the bg engine
 with targeting roles. Healthier matchups and fights half as long, but late boards still drift to bruiser and
 the replay cannot show targeting yet. Recommendation: rework, then ship at a reset after Jesper is back.

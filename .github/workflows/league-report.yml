@@ -1,0 +1,43 @@
+name: League report
+
+# Read-only data pull for balance reviews. Prints, for one season: the boards of
+# the latest scored round (public already: league_results is anon-readable) and
+# each player's best raid depth and full-clear time (league_boards; no board
+# contents, so nothing about live boards leaks into these public logs).
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: 'season id, e.g. 2026-11-16'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        env:
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SEASON: ${{ inputs.season }}
+        run: |
+          set -euo pipefail
+          case "$SEASON" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;; *) echo "bad season"; exit 1;; esac
+          U=https://wvrllhiktnkvbpclmrpq.supabase.co/rest/v1
+          last=$(curl -sSf "$U/league_rounds?season=eq.$SEASON&closed_at=not.is.null&select=round_id&order=ride_date.desc&limit=1" -H "apikey: $KEY" | python3 -c "import json,sys; r=json.load(sys.stdin); print(r[0]['round_id'] if r else '')")
+          echo "Latest scored round: $last"
+          if [ -n "$last" ]; then
+            curl -sSf "$U/league_results?round_id=eq.$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$last")&select=rank,name,points,health_diff,board&order=rank" -H "apikey: $KEY" \
+            | python3 -c "
+          import json,sys
+          for r in json.load(sys.stdin):
+              units=', '.join(f\"{u['defId']}*{u.get('tier',1)}\"+(('['+'+'.join(u['relicIds'])+']') if u.get('relicIds') else '') for u in r['board'].get('units',[]))
+              print(f\"#{r['rank']} {r['name']}: {r['points']} pts, hp {r['health_diff']} | {units}\")"
+          fi
+          echo "Raid depth and full clears (season $SEASON):"
+          curl -sSf "$U/league_boards?season=eq.$SEASON&select=name,best_depth,cleared_at,updated_at&order=best_depth.desc" -H "apikey: $KEY" \
+          | python3 -c "
+          import json,sys
+          for r in json.load(sys.stdin): print(f\"  {r['name']}: best depth {r['best_depth']}, cleared {r['cleared_at'] or '-'}\")"

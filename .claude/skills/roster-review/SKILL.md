@@ -62,8 +62,20 @@ not walls: loosen them when it clearly helps, and say so.
 - Poison carrying over when its rat dies; poison on the whole enemy line (even
   1 stack): stall/rot combos on 90-100% of boards. Use a one-time burst instead.
 - Armor scaling 1/3/9: Bruiser dominance.
+- Nerfing one rat's numbers to break a mono-rat wall (2026-11-23): seven ★3 Dire-Rats with 3 relics
+  each stayed top of the maxed round-robin under every Dire-Rat number tried (armor, health, attack,
+  combinations) and under the bg engine. The cause was copies; fixed with a 3-copy board limit.
+
+## Check maxed boards too
+The budget sim stops at 7 rats, no relics, 400 scrap. A heavy player reaches 8 ★3 rats with 3 relics
+each by mid-week (season 3: full clear on day 2). Before a reset, replay the real boards
+(`League report` workflow prints the last round's boards) and a round-robin of same-value maxed
+boards with relics. A board that beats every other one is the red flag.
 
 ## Shipping a change
+- Push the change, with tests passing and its notes in `scripts/discord/notes/<new season id>.json`,
+  to branch `next-season` before Sunday evening. `season-release.yml` (started by Supabase pg_cron)
+  merges it after Sunday's final round and posts the notes Monday morning. Nothing to schedule.
 - Small number changes: at most one per week, at the Monday 06:00 reset.
 - Big changes (rules, new or removed rats): ship as a full season change, also at
   a reset, with patch notes in #wrad (`scripts/discord/*.json` + the "Discord

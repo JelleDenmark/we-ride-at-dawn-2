@@ -1,0 +1,113 @@
+name: Season release
+
+# Weekly reset releases, started by permanent Supabase pg_cron jobs
+# (supabase/migrations/2026-11-23-season-release-pg-cron.sql), so a reset never
+# depends on someone, or a Claude session, being awake:
+#
+#   step=deploy  Sunday after the final round. If branch `next-season` exists and
+#                is not yet in master: check the season's final round is closed
+#                (run it if not), merge, test, build, push master and dev, start
+#                the Pages deploy. No branch, or already merged: nothing to do.
+#   step=notes   Monday after the 06:00 reset. Posts
+#                scripts/discord/notes/<season id>.json to #wrad if it exists,
+#                once (marker in scripts/discord/sent/).
+#
+# To ship a season change: push it to `next-season` with its notes file before
+# Sunday evening. Safe to run by hand and to run twice.
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'deploy or notes'
+        required: true
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: season-release
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Git identity
+        run: |
+          git config user.name "wrad2-release"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy next-season
+        if: inputs.step == 'deploy'
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! git ls-remote --exit-code --heads origin next-season >/dev/null; then
+            echo "No next-season branch. Nothing to release."; exit 0
+          fi
+          git fetch -q origin next-season
+          if git merge-base --is-ancestor origin/next-season HEAD; then
+            echo "next-season is already in master. Nothing to do."; exit 0
+          fi
+          npm ci
+          round=$(cd packages/core && npx tsx -e "import { currentRideDate } from './src/seed'; import { seasonIdFor } from './src/shop'; const d = currentRideDate(); console.log(seasonIdFor(d) + '#' + d)")
+          echo "Final round to check: $round"
+          case "$round" in *-*-*#*-*-*) ;; *) echo "could not compute the round id"; exit 1;; esac
+          dow=$(TZ=Europe/Copenhagen date -d "${round#*#}" +%u)
+          [ "$dow" = 7 ] || { echo "Ride date ${round#*#} is not a Sunday. Not releasing mid-season."; exit 1; }
+          enc=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$round")
+          round_closed() {
+            curl -sS "https://wvrllhiktnkvbpclmrpq.supabase.co/rest/v1/league_rounds?round_id=eq.$enc&select=closed_at" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" | grep -q '"closed_at":"'
+          }
+          if ! round_closed; then
+            echo "Final round not closed yet. Running it now."
+            (cd packages/core && npm run league:round -- --scheduled)
+          fi
+          round_closed || { echo "Final round still not closed. Not releasing."; exit 1; }
+          git merge --no-edit origin/next-season
+          npm ci
+          npm test -w @wrad/core
+          npm run build -w @wrad/app
+          git push -q origin HEAD:master
+          git push -q origin HEAD:dev
+          # Pushes made with GITHUB_TOKEN do not start other workflows: start the deploy.
+          gh workflow run deploy.yml --ref master
+          echo "next-season merged and pushed; Pages deploy started."
+
+      - name: Post the season's notes (once)
+        if: inputs.step == 'notes'
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm ci --silent
+          season=$(cd packages/core && npx tsx -e "import { currentRideDate } from './src/seed'; import { seasonIdFor } from './src/shop'; console.log(seasonIdFor(currentRideDate()))")
+          src="scripts/discord/notes/$season.json"; marker="scripts/discord/sent/notes-$season.json"
+          [ -f "$src" ] || { echo "No notes for season $season. Nothing to post."; exit 0; }
+          [ -f "$marker" ] && { echo "Notes for $season already posted ($(cat "$marker"))."; exit 0; }
+          python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$src"
+          code=$(curl -sS -o resp.txt -w '%{http_code}' -X POST \
+            "https://discord.com/api/v10/channels/1524165668004560896/messages" \
+            -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: DiscordBot (https://github.com/JelleDenmark/we-ride-at-dawn-2, 1.0)" \
+            --data-binary "@$src")
+          echo "HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ] || { cat resp.txt; exit 1; }
+          mkdir -p scripts/discord/sent
+          date -u +%FT%TZ > "$marker"
+          git add "$marker"
+          git commit -m "Posted the season $season notes to #wrad"
+          for i in 1 2 3; do git pull --rebase -q origin master && git push -q origin HEAD:master && break; sleep 5; done

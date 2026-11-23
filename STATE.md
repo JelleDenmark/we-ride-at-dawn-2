@@ -1,151 +1,69 @@
 # State (replaced each session)
 
-Updated 2026-11-05. The design page (Claude Docs, https://claude.ai/artifact/L64C6UcKBkCQ9obFk2pSyQ)
-is the only design document. Claude owns development and balance; Jesper relays player
-feedback and decides the game idea, gameplay loop and rat theme. Roster/balance method:
+Updated 2026-11-23. The design page (Claude Docs, https://claude.ai/artifact/L64C6UcKBkCQ9obFk2pSyQ)
+is the only design document. Claude owns development and balance and makes those decisions; Jesper
+relays player feedback and decides the game idea, gameplay loop and rat theme. Roster/balance method:
 `.claude/skills/roster-review/SKILL.md`.
 
-**Live:** https://jelledenmark.github.io/we-ride-at-dawn-2/ (master), /dev/ (dev). Deploys on push
-to either. Default branch master. Season 1 (week of 2026-11-02) runs the launch roster.
+**Live:** https://jelledenmark.github.io/we-ride-at-dawn-2/ (master), /dev/ (dev). Pages deploys on
+push to either. Roster v2 (13 rats) since season 3 (2026-11-16). Season 4 (2026-11-23) runs v2
+unchanged.
 
-**Ops:** nightly round `.github/workflows/league-nightly.yml`. Season 1 scored NO rounds: GitHub ran
-every scheduled run 4-5 h late (00:48-02:08 Copenhagen), outside the old 21:30-24:00 window. Since
-2026-11-07: primary trigger is a daily Claude scheduled task that dispatches the workflow at 21:52
-Copenhagen; fallback is the 4 UTC cron entries, which now score 21:30-05:59 (same ride date until the
-06:00 rollover). Proper fix LIVE 2026-11-07 (as WRAD1 did): Supabase pg_cron job 'league-nightly-trigger'
-(supabase/migrations/2026-11-07-league-pg-cron.sql, token = Vault secret 'github_pat') dispatches
-with scheduled=true at 19:40 and 20:40 UTC. Its runs show as workflow_dispatch at :40 past. Once one
-has scored a round, the 21:52 Claude dispatch task ("WRAD2: dispatch the nightly league round")
-can be disabled. First round ever scored: 2026-11-07 (3 boards), after fixing health_diff being
-written as a decimal into an int column (2a30ae9). Old notes: closed round = no-op, also scores the `dev-` season silently,
-no standings post below 2 boards). Discord posts: commit a payload to `scripts/discord/` and run
-the "Discord post" workflow. Secrets: SUPABASE_SERVICE_ROLE_KEY (sb_secret_, sent as apikey only),
-DISCORD_BOT_TOKEN. No pg_cron.
-**WRAD1 retired 2026-11-06:** `/we-ride-at-dawn/` (+ `/dev/`) redirects here. Its repo no longer
-pings Supabase, so this repo's keep-alive is the only one for the shared project. WRAD1's
-discord-feedback edge function still serves the #wrad feedback panel: don't delete it. Supabase tables `league_*` (migration in supabase/migrations).
+**Next reset (2026-11-30, season 5): 3-copy board limit** on branch `next-season` (e21289d): at most
+3 copies of the same rat on the board; a 4th waits on the bench; validateBoard drops boards with more.
+Notes: `scripts/discord/notes/2026-11-30.json`. Ships automatically (see Ops).
 
-**Branches:**
-- `wt/v2` — roster v2, tested (208 core tests, app builds), NOT live. Ships after Sunday
-  2026-11-08's final round; patch notes `scripts/discord/patch-2.1.json` post Monday 06:10
-  (both scheduled as tasks).
-- `wt/bg` — prototype Battlegrounds-style combat (`RULES.combat = 'bg'`: each side's next attacker
-  hits a random foe or a taunt, hits are traded; per-side seeded RNG keeps duels seat-fair).
-  Adds `taunt`, `targeting` (weakest/strongest sniper), `cleave`. Based on an early v2 commit:
-  rebase onto v2 before use.
+## Ops (all automatic; Claude's timed wake-ups are unreliable, don't depend on them)
+- **Nightly round:** Supabase pg_cron `league-nightly-trigger` dispatches league-nightly.yml with
+  scheduled=true at 19:40 and 20:40 UTC (one lands at 21:40 Copenhagen year-round). GitHub's own
+  cron entries are a late fallback; scheduled runs score 21:30-05:59 Copenhagen; a closed round is a
+  no-op; fewer than 2 boards = no duel, no post. Token: Vault secret `github_pat`.
+- **Season releases:** season-release.yml, started by pg_cron (migration 2026-11-23): Sunday 21:40
+  UTC merges `next-season` after the final round closes (+ retry 22:40); Monday 05:10 UTC posts
+  `scripts/discord/notes/<season>.json` once. **Needs the 2026-11-23 SQL run once in Supabase.**
+- **Discord posts:** commit a payload to `scripts/discord/` and run "Discord post", or v2-launch.yml
+  step=post (posts once, marker in `scripts/discord/sent/`).
+- **Data for reviews:** "League report" workflow (input season): last round's boards (public data)
+  and each player's best depth and full-clear time.
+- **Feedback:** #wrad "Feedback & Support" panel → Supabase public.feedback → GitHub issues every
+  6 h (feedback-to-issues.yml, needs-triage). Read open issues before any balance change.
+- **CI:** core tests on every push (ci.yml). Art test: every rat/summon/enemy needs
+  `packages/app/src/replay/art/<id>.svg`.
+- Secrets: SUPABASE_SERVICE_ROLE_KEY (sb_secret_, apikey header only), DISCORD_BOT_TOKEN.
+  Supabase keep-alive lives here (WRAD1 retired 2026-11-06 and redirects here; its discord-feedback
+  edge function still serves the #wrad panel: don't delete it).
+- Claude scheduled tasks bound to the working session: daily ops check 09:41, monthly roster review
+  on the 3rd. Fresh scheduled sessions cannot attach this repo.
 
-**Roster v2 (13 rats):** Swarm: Gutter Runt 2 (scavenges +3 scrap/raid, one counts), Rat-Piper 4,
-Brood-Mother 6 (3 pups). Plague: Plague-Bearer 4, Draughtsman Moe 8 (poisons the hardest hitter),
-Rot-Chemist 6 (new; faint: hits every foe for 1/3/9). Sacrifice: Gnawer 4 (+3 attack behind),
-Corpse-Glutton 6 (grows up to 4x), Bone-Priest 7. Bruiser: Dire-Rat 8 (4/4, armor 2),
-MD Rattyfock 6, Press-Kin 5, Ward-Weaver 7. Removed Dawn-Runt, Dusk-Runt. Rules: pups arrive at the
-summoner's tier with a fixed litter; revived rats come back hollow at half health; buffs scale
-1/2/3 (stats 1/3/9); foe-targeting faint effects land before own-board ones (seat fairness).
+## Balance log
+- **Reset review 2026-11-23 (decided):** no change for season 4; 3-copy limit for season 5.
+  Season 3 top board: 7x Dire-Rat ★3 + Ward-Weaver ★3, 3 relics each (Fat Tick, Gore-Cleaver,
+  Marrow-Snap, Tail-Charm); won all 7 nights. Same-value maxed round-robin: it beats plague, swarm,
+  sacrifice, mixed and bruiser boards. Every single Dire-Rat number tried (armor 1, armor at ★3 = 2
+  or 4, health 3, attack 3, attack 3 + armor 1) left it on top, and so did the bg engine. With a
+  3-copy limit no board beats every other one. Budget sim (no relics, 7 rats): noisy either way.
+- **Economy (open, next after the copy limit):** the top player cleared all 20 waves on day 2
+  (season 3; day 5 in season 1; sim expects day 6-7); others reached depth 14 and 6. Early clear
+  → max scrap every raid → relics on everything. Re-measure clear days after season 5 before
+  touching INCOME_CAP, enemy scaling or relic cost. One change per reset.
+- Swarm and sacrifice lose almost every maxed matchup with relics (they are early/mid-week boards
+  in the budget sim). Watch after the copy limit.
 
-**v2 sim (budget mode, 6 seeds):** each budget has 2-3 strategies with real shares. Open: Moe and
-Dire-Rat on 92-100% of late (400) boards; Sacrifice thin under some seeds; Bone-Priest central.
-Economy: 14 raids/day finishes day 6-7; 24/day day 4-5; one scavenging runt ~+1 wave of depth.
+## Branches
+- `next-season`: season 5 copy limit (above).
+- `wt/v3`: roster v3 candidate on the bg engine (targeting roles), docs/v3-review.md. Healthier
+  matchups, fights half as long, replay can't show targeting yet, 14 queue tests to port.
+  Recommendation: rework first. Does not fix the mono-rat wall on its own.
 
-**bg vs queue (same roster, untuned):** bg is seat-fair, raids still work (depth about equal,
-swarm -1 wave), fights ~45% shorter (9 vs 16 rounds). Diversity not better yet: swarm 71% at
-budget 150, bruiser 49% at 400. Value is the design space (taunt/sniper/cleave, random targets
-could replace the -1/0/+1 night shift).
+## History (short)
+- Season 1 (11-02): launch roster; GitHub ran rounds hours late, Mon-Fri unscored; fixed 11-07.
+- Season 2 (11-09): one board all week. Roster v2 slipped a week (scheduled sessions had no repo
+  access); shipped 11-15 via Supabase-started v2-launch.yml.
+- Season 3 (11-16): roster v2, 3 boards nightly, Sugondeez Nutts won every night.
+- Bugs fixed: decimal health_diff into an int column; crown for a 0-point lone board; Sluice-Bulwark
+  art missing.
 
-## While you were away (7-22 Nov) — recap for Jesper
-
-**Rounds.** Season 1: GitHub ran every scheduled round 4-5 h late, outside the scoring window, so
-Mon-Fri never scored; fixed (window to 06:00 + Supabase pg_cron trigger at 21:40), Sat/Sun scored.
-Season 2: one board all week, no duels. Season 3 (v2): 3 boards every night, all scored;
-Sugondeez Nutts won both duels all 5 nights so far.
-
-**Bugs fixed.** Round script wrote decimal health_diff into an int column (first 2+ board round
-failed to save). Champion post would crown a 0-point lone board. Sluice-Bulwark had no art (drawn;
-art test now requires art for every rat/enemy). CI runs the core tests on every push.
-
-**Roster v2 slipped a week.** Scheduled Claude sessions could not write to the repo (and timed
-wake-ups ran up to 2 h late), so the 8 Nov deploy never happened. Moved the launch to Supabase pg_cron
-+ the v2-launch workflow: teasers Sat/Sun, deploy Sun 15 Nov 22:40, notes and first-duel reminder
-Mon 16 Nov all went out once, on time. v2 brought 3 boards back.
-
-**Balance changes.** None shipped.
-
-**v3.** Review on branch wt/v3 (docs/v3-review.md): same rats on the bg engine with targeting roles.
-Healthier matchups, fights half as long, replay can't show targeting yet. Recommendation: rework first.
-
-**Open questions for you (reset review 2026-11-21, no change shipped for 23 Nov):**
-1. Mono-Dire-Rat with relics. Sugondeez's board (7x Dire-Rat ★3 + Ward-Weaver ★3, 3 relics each:
-   Fat Tick, Gore-Cleaver, Marrow-Snap, Tail-Charm) beats same-value plague, swarm and mixed boards
-   18-20 of 20 nights (real-board replays). Dire-Rat armor 2->1 (★3: 6->3) lets plague, its designed
-   counter, win 20/20 but swarm/mixed still lose; health 4->3 flips mixed but not plague. The relic-free
-   duel-sim does not show Dire-Rat dominant, so armor x relics is the multiplier. Candidate: armor 2->1.
-   Not shipped: 3 players, unclear fix, and it would land on one player's board. Your call.
-2. Economy. Sugondeez cleared all 20 waves on day 2 (Tue 17 Nov); last season day 5; the sim expects
-   day 6-7. Others reached depth 14 and 6. One active player snowballs: early clear -> max scrap
-   every raid -> relics on everything. Levers: INCOME_CAP, enemy scaling, relic cost.
-3. Housekeeping: remove the WRAD2 scheduled tasks when back (daily check reminds from 24 Nov);
-   update the design page to v2; Claude's timed wake-ups are unreliable, keep anything that must
-   happen on Supabase pg_cron. The league-report workflow prints last round's boards + clear days.
-
-**Roster v3 review ready (2026-11-17):** branch wt/v3, docs/v3-review.md. Same 13 rats on the bg engine
-with targeting roles. Healthier matchups and fights half as long, but late boards still drift to bruiser and
-the replay cannot show targeting yet. Recommendation: rework, then ship at a reset after Jesper is back.
-v2's first round (2026-11-16) had 3 boards.
-
-**Roster v2 is LIVE as season 3 (from 2026-11-16).** Deployed 2026-11-15 22:40 Copenhagen by the
-Supabase-started v2-launch workflow, after season 2's final round closed (1 board, no duels): wt/v2
-merged into master (1a126a6), 214 tests passed, app built, master and dev pushed, Pages deploy green.
-Both teasers posted (Sat 12:07, Sun 17:13). Patch notes Mon 06:10, first-duel reminder Mon 18:07.
-To do: Design page still shows the launch roster; update it to v2.
-
-**v2 launch runs from Supabase (2026-11-13):** Claude's timed wake-ups did not fire in two tests, so
-the launch steps are pg_cron one-shot jobs (supabase/migrations/2026-11-13-v2-launch-pg-cron.sql) that
-start .github/workflows/v2-launch.yml: teasers Sat 12:07 / Sun 17:13, deploy Sun 22:40 (+ retry 23:40),
-patch notes Mon 06:10, first-duel reminder Mon 18:07 (Copenhagen). Each step runs once at most (post
-markers in scripts/discord/sent/, deploy is a no-op once v2 is live). The Claude tasks for the same
-steps call the same workflow as a backup. Any later Claude-only scheduled task may not fire: don't
-rely on one for anything that must happen.
-
-**2026-11-13: roster v2 slipped a week.** The scheduled tasks created 2026-11-05/07 started fresh
-sessions with no write access to this repo (no add_repo, GitHub 403 on push and workflow runs), so the
-2026-11-08 deploy stopped and the 2026-11-09 patch notes correctly did not post; the daily checks and the
-v3 branch work did nothing. Season 2 runs the launch roster. v2 (branch wt/v2, master merged, 211 tests,
-builds) now deploys Sun 2026-11-15 22:40 after season 2's final round, notes post Mon 2026-11-16 06:10
-(patch-2.1.json, retitled "Season 3"). All WRAD2 tasks now fire into one Claude session that has push
-access: daily ops 09:41, v2 deploy, notes, v3 branch work Tue 11-17, reset review + recap Sat 11-21.
-Re-tested 2026-11-13 after Jesper widened GitHub access: a fresh session still cannot attach the repo
-(its own permission check refuses add_repo when no person started it), so every WRAD2 task, incl. the
-monthly review, is bound to the one session with access. v2 launch posts: teaser Sat 11-14 12:07
-(v2-teaser-sat.json), teaser Sun 11-15 17:13 (v2-teaser-sun.json), patch notes Mon 06:10, first-duel
-reminder with the live board count Mon 18:07. Season with no points now gets no crown (eb379f0). Rounds were unaffected: pg_cron scored season 1's finale on 11-08;
-season 2 has had a single board all week, so no duels.
-
-**Jesper away ~2026-11-07 to 2026-11-22 (his decision 2026-11-07):** roster v2 stays live until he
-is back. No new combat engine or roster overhaul; v3 is built and tested on branch `wt/v3` only, with
-a review note (docs/v3-review.md) for his return. Small numeric tweaks at a Monday reset are allowed
-if the data clearly calls for them. Bug fixes ship right away. Rule-level ideas wait for him.
-Scheduled while away: daily ops check 09:41 (round, deploys, issue triage, bug fixes); v3 branch
-work Tue 11-10; reset reviews Sat 11-14 and Sat 11-21 (the second writes a recap for Jesper).
-
-**Next (week of 2026-11-09):** (superseded by the away plan above: build v3 on `wt/v3`, do not ship) design roster v3 for the bg engine (every rat gets a targeting
-role: taunt tanks, snipers, cleavers, rats that profit from random hits); ship on 2026-11-16 only
-if it beats v2 in the budget sim AND replays read clearly on a phone; otherwise keep the queue
-engine. Use season-2 real boards and player feedback. The replay (ReplayPlayer) has not been
-checked with bg events.
-
-**Scheduled tasks (each starts a fresh session):** deploy v2 Sun 2026-11-08 22:40 (waits for the
-final round to close); post patch notes Mon 2026-11-09 06:10 (only if v2 is live); monthly roster
-review on the 3rd, 14:37 Copenhagen (follows the roster-review skill). Scheduled sessions run
-without connectors (no Claude Docs), so design-page updates may land in "To do" here instead.
-
-**Player feedback:** players use the Discord "Feedback & Support" panel in #wrad (old discord-feedback
-edge function, stores rows in Supabase public.feedback). `.github/workflows/feedback-to-issues.yml`
-files new rows (from 2026-11-03) as GitHub issues every 6 hours (needs-triage + player-bug/feedback/
-question; text only, no Discord identity). Read open issues before any balance change.
-
-**Feedback 2026-11-07 (Jesper):** players clear all 20 waves fast, much earlier than the sim's
-day 6-7 (14 raids/day). Check real clear days (league_boards.cleared_at vs season start) at the
-2026-11-14 reset review. If confirmed, the levers are numeric (enemy scaling, INCOME_CAP), not
-WAVE_COUNT. Re-check after v2 is live: v2 changes the economy (scavenging runt).
-
-**Known gaps:** app has no test setup; sanitizer in packages/app/src/roster.ts verified manually.
-The night -1/0/+1 attack shift is per slot (Jesper: keep), visible in "Tonight's duel".
+## To do
+- Run the 2026-11-23 season-release SQL in Supabase (Jesper).
+- Update the design page to roster v2 (+ copy limit after 11-30).
+- The night -1/0/+1 attack shift is per slot (Jesper: keep). App has no test setup.

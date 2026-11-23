@@ -45,6 +45,8 @@
     moveUnit,
     benchUnit,
     deployUnit,
+    copiesOnBoard,
+    MAX_COPIES_ON_BOARD,
     swapWithBench,
     lineupFromBuild,
     unitStats,
@@ -752,7 +754,16 @@
   }
 
   function recruitFromCard(i: number) {
-    if (applyAndAutoReroll(buyUnit(build, i))) inspect = null;
+    const slot = build.shop.slots[i];
+    const before = slot.kind === 'unit' ? copiesOnBoard(build.board, slot.defId) : 0;
+    const benchBefore = build.bench.length;
+    if (applyAndAutoReroll(buyUnit(build, i))) {
+      inspect = null;
+      // Season 5 copy limit: a 4th copy waits on the bench instead of fighting.
+      if (slot.kind === 'unit' && before >= MAX_COPIES_ON_BOARD && build.bench.length > benchBefore) {
+        notice = `${MAX_COPIES_ON_BOARD} ${UNIT_DEFS[slot.defId].name}s already fight. This one waits on the bench.`;
+      }
+    }
   }
 
   // The ONLY way to grow the board beyond BOARD_FLOOR, up to the hard

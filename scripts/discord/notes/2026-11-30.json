@@ -1,0 +1,3 @@
+{
+  "content": "**Season 5: three of a kind, no more.**\nA warren now fields at most 3 copies of the same rat. A 4th copy waits on the bench. Merging still works: three ★1s still make a ★2.\nWhy: a wall of seven ★3 Dire-Rats beat every other board of the same value, and no single Dire-Rat number fixed that without breaking something else. With three copies at most, every top board in my tests loses to something.\nNothing else changes. Every board starts fresh at 06:00.\nhttps://jelledenmark.github.io/we-ride-at-dawn-2/"
+}

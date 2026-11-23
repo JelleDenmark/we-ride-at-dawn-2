@@ -1,7 +1,7 @@
 import { UNIT_DEFS, type Lineup } from './data/units';
 import { RELIC_DEFS } from './data/relics';
 import { BOARD_CAP } from './sim';
-import { MAX_TIER, MAX_RELICS_PER_RAT } from './shop';
+import { MAX_TIER, MAX_RELICS_PER_RAT, MAX_COPIES_ON_BOARD, overCopyLimit } from './shop';
 import { simulateDuel } from './duel';
 import { xorshift128 } from './prng';
 import { fnv1a } from './seed';
@@ -83,6 +83,8 @@ export function validateBoard(board: Lineup): { ok: true } | { ok: false; reason
       seen.add(id);
     }
   }
+  const over = overCopyLimit(board.units);
+  if (over) return { ok: false, reason: `more than ${MAX_COPIES_ON_BOARD} copies of "${over}"` };
   const seen = new Set<string>();
   for (const id of board.teamRelicIds ?? []) {
     if (RELIC_DEFS[id]?.scope !== 'team' || seen.has(id)) return { ok: false, reason: `bad team relic "${id}"` };

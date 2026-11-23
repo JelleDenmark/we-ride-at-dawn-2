@@ -12,6 +12,30 @@ export const SHOP_RELIC_SLOTS = 2;
 export const MAX_TIER = 3;
 /** Most relics one rat can carry. */
 export const MAX_RELICS_PER_RAT = 3;
+/**
+ * At most this many copies of one rat fight on a board (any tiers; the bench is
+ * unlimited by kind). Added for season 5 (2026-11-30): seven ★3 Dire-Rats with
+ * three relics each beat every same-value board in the front-clash engine, and
+ * no single Dire-Rat number fixed it (see STATE.md, reset review 2026-11-23).
+ */
+export const MAX_COPIES_ON_BOARD = 3;
+
+export function copiesOnBoard(board: readonly { defId: string }[], defId: string): number {
+  return board.reduce((n, u) => n + (u.defId === defId ? 1 : 0), 0);
+}
+
+/** The first rat with more than MAX_COPIES_ON_BOARD copies on the board, if any. */
+export function overCopyLimit(board: readonly { defId: string }[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const u of board) {
+    const n = (counts.get(u.defId) ?? 0) + 1;
+    if (n > MAX_COPIES_ON_BOARD) return u.defId;
+    counts.set(u.defId, n);
+  }
+  return undefined;
+}
+
+const COPY_LIMIT_MSG = `a warren fields at most ${MAX_COPIES_ON_BOARD} of the same rat`;
 export const SEASON_DAYS = 7;
 /** Bench slots: storage for rats outside the fighting horde (never enter
  * `simulate`). Small on purpose — it's for holding merge candidates and
@@ -396,10 +420,11 @@ export function buyUnit(state: BuildState, slotIndex: number): ActionResult {
   // is already full — as a temporary overflow. If nothing merges, the
   // post-combine cap checks below reject the buy and the clone `s` (with its
   // scrap already spent) is discarded, so the caller's state is untouched.
-  if (s.board.length < cap) s.board.push(fresh);
+  if (s.board.length < cap && copiesOnBoard(s.board, def.id) < MAX_COPIES_ON_BOARD) s.board.push(fresh);
   else s.bench.push(fresh);
   s.scrap -= def.cost;
   combineAll(s);
+  if (overCopyLimit(s.board)) return fail(COPY_LIMIT_MSG);
   // The real guardrails: run *after* the combine so a third-of-a-kind bought
   // onto a full board/bench is allowed (a completing merge shrank the pool),
   // while a buy that merged nothing and left the overflow in place is rejected.
@@ -582,6 +607,8 @@ export function deployUnit(state: BuildState, benchIndex: number, toBoardIndex?:
       : toBoardIndex;
   s.board.splice(insertAt, 0, moved);
   combineAll(s);
+  // Checked after the combine: deploying the copy that completes a trio is fine.
+  if (overCopyLimit(s.board)) return fail(COPY_LIMIT_MSG);
   return { ok: true, state: s };
 }
 
@@ -598,6 +625,7 @@ export function swapWithBench(state: BuildState, boardIndex: number, benchIndex:
   s.board[boardIndex] = benchUnit;
   s.bench[benchIndex] = boardUnit;
   combineAll(s);
+  if (overCopyLimit(s.board)) return fail(COPY_LIMIT_MSG);
   return { ok: true, state: s };
 }
 

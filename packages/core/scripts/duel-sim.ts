@@ -24,6 +24,7 @@ import { UNIT_DEFS, type Lineup } from '../src/data/units';
 import { simulateDuel } from '../src/duel';
 import { applyNightVariation } from '../src/league';
 import { COMBAT_CAP_BONUS, RULES } from '../src/sim';
+import { MAX_COPIES_ON_BOARD } from '../src/shop';
 import { xorshift128, type Rng } from '../src/prng';
 
 for (const kv of (process.env.SET ?? '').split(',').filter(Boolean)) {
@@ -99,8 +100,12 @@ function swing(tier: number): string {
 }
 
 /** Spend at most `budget`: drop tiers, then rats, until it fits. */
+// Copy limit (season 5): at most COPYCAP of one rat per board. COPYCAP=99 turns it off.
+const COPYCAP = Number(process.env.COPYCAP ?? MAX_COPIES_ON_BOARD);
+const copies = (b: Board, id: string) => b.filter((u) => u.id === id).length;
 function repair(b: Board, budget: number, rng: Rng): Board {
   const c = b.map((u) => ({ ...u }));
+  for (let i = c.length - 1; i >= 0; i--) if (copies(c, c[i].id) > COPYCAP) c.splice(i, 1);
   while (price(c) > budget && c.length) {
     const i = rng.int(c.length);
     if (c[i].tier > 1) c[i].tier--;
@@ -112,7 +117,7 @@ function randomBoard(rng: Rng, budget: number): Board {
   const b: Board = [];
   for (let k = 0; k < 30 && b.length < SIZE; k++) {
     const u = { id: IDS[rng.int(IDS.length)], tier: 1 + (rng.int(3) === 0 ? rng.int(3) : 0) };
-    if (price([...b, u]) <= budget) b.push(u);
+    if (price([...b, u]) <= budget && copies(b, u.id) < COPYCAP) b.push(u);
   }
   return b;
 }
